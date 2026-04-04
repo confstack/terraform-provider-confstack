@@ -1,0 +1,2 @@
+env_val: {{ var "MY_ENV_VAR" }}
+secret_val: {{ secret "MY_ENV_SECRET" }}

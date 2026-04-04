@@ -1,0 +1,4 @@
+foo: bar
+---
+foo: baz
+new_key: true

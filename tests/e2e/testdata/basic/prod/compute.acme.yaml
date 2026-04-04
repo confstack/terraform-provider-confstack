@@ -1,0 +1,6 @@
+eks:
+  node_size: m5.xlarge
+sqs_queues:
+  orders:
+    _inherit: base
+    visibility_timeout: 120

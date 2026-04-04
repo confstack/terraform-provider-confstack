@@ -1,4 +1,14 @@
-# terraform-provider-confstack
+<div align="center">
+
+# OpenTofu Provider ConfStack
+
+**OpenTofu provider for managing YAML config GitOps style**
+
+![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=for-the-badge&logo=terraform&logoColor=white)
+
+</div>
+
+---
 
 An OpenTofu/Terraform provider that resolves layered, hierarchical YAML configuration into a single merged output. Designed for multi-environment, multi-tenant infrastructure projects using a flat HCL codebase.
 
@@ -174,8 +184,8 @@ make test
 # With coverage report
 make cover
 
-# Acceptance tests (requires tofu or terraform in PATH)
-make testacc
+# E2E tests (requires tofu or terraform in PATH)
+make e2e
 ```
 
 ## Development

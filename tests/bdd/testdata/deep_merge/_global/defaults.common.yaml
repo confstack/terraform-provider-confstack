@@ -1,0 +1,12 @@
+nested:
+  level1:
+    level2:
+      base_key: true
+      override_me: "base"
+my_list:
+  - one
+  - two
+to_be_deleted: "exists"
+nested_delete:
+  to_be_deleted: "exists"
+  kept: true

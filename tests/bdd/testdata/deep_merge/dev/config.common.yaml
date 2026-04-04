@@ -1,0 +1,10 @@
+nested:
+  level1:
+    level2:
+      override_me: "overridden"
+      new_key: true
+my_list:
+  - three
+to_be_deleted: null
+nested_delete:
+  to_be_deleted: null

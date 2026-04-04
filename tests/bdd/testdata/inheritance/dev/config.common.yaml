@@ -1,0 +1,11 @@
+sqs_queues:
+  notifications:
+    _inherit: standard
+    retention: 3600
+  orders:
+    _inherit:
+      - template: standard
+        except:
+          - dlq
+      - template: critical
+    visibility_timeout: 120

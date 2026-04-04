@@ -6,8 +6,11 @@ build:
 test:
 	go test ./internal/... -v -timeout 120s
 
-testacc:
-	TF_ACC=1 go test ./internal/adapter/driving/terraform/... -v -timeout 300s
+e2e:
+	TF_ACC=1 go test ./tests/e2e/... -v -timeout 300s
+
+bdd:
+	go test ./tests/bdd/... -v
 
 cover:
 	go test ./internal/... -coverprofile=coverage.out -covermode=atomic
@@ -30,4 +33,4 @@ clean:
 generate:
 	go generate ./...
 
-.PHONY: build test testacc cover lint fmt install clean generate
+.PHONY: build test e2e bdd cover lint fmt install clean generate

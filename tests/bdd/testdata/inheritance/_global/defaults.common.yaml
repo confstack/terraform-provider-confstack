@@ -1,0 +1,11 @@
+sqs_queues:
+  _templates:
+    standard:
+      retention: 86400
+      dlq: true
+      visibility_timeout: 30
+    critical:
+      retention: 604800
+      dlq: true
+      visibility_timeout: 30
+      dlq_max_retries: 5

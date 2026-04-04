@@ -1,0 +1,3 @@
+db:
+  password: {{ secret "DB_PASSWORD" }}
+  vpc_id: {{ var "VPC_ID" }}

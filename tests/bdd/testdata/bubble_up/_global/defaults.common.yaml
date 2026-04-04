@@ -1,0 +1,9 @@
+_templates:
+  global_standard:
+    retention: 3600
+    dlq: true
+
+services:
+  app1:
+    _inherit: global_standard
+    name: "service-one"

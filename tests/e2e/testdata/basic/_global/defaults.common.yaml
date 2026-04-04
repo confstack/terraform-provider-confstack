@@ -1,0 +1,8 @@
+tags:
+  managed_by: opentofu
+  team: platform
+sqs_queues:
+  _templates:
+    base:
+      retention: 86400
+      dlq: true
