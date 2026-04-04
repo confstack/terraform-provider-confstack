@@ -1,0 +1,25 @@
+# Binaries
+bin/
+terraform-provider-confstack
+*.exe
+
+# Go build artifacts
+dist/
+
+# Terraform files
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Test artifacts
+*.test
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

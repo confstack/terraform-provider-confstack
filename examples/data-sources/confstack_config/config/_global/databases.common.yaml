@@ -1,0 +1,6 @@
+databases:
+  main:
+    host: db.example.internal
+    password: {{ secret "DB_PASSWORD" }}
+    vpc_id: {{ var "VPC_ID" }}
+    engine: postgres
