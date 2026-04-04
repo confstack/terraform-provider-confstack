@@ -1,4 +1,4 @@
 s3_buckets:
   data:
-    _inherit: base
+    _inherit: s3_base
     bucket_name: acme-prod-data

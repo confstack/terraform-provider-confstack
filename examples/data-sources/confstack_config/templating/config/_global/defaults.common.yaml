@@ -1,0 +1,13 @@
+# Multiple documents in one file
+---
+# Using Sprig helpers and context variables
+project_info:
+  env_name: {{ .Environment | upper }}
+  tenant_name: {{ default "none" .Tenant | upper }}
+  generated_at: {{ now | date "2006-01-02" }}
+
+---
+# Using var and secret functions
+infrastructure:
+  vpc_id: {{ var "VPC_ID" }}
+  db_password: {{ secret "DB_PASSWORD" }}

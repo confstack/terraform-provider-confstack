@@ -1,0 +1,13 @@
+sqs_queues:
+  # Simple string inheritance
+  notifications:
+    _inherit: standard
+    retention: 3600  # override template value
+
+  # Multiple inheritance with 'except' list
+  orders:
+    _inherit:
+      - template: standard
+        except: [dlq]  # skip dlq from standard
+      - template: critical
+    visibility_timeout: 120

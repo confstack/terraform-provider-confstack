@@ -1,0 +1,27 @@
+---
+# Global Shared Config
+tags:
+  managed_by: opentofu
+  team: platform
+
+---
+# Global SQS Templates
+sqs_queues:
+  _templates:
+    sqs_base:
+      retention: 86400
+      dlq: true
+      visibility_timeout: 30
+    critical:
+      retention: 604800
+      dlq: true
+      visibility_timeout: 30
+      dlq_max_retries: 5
+
+---
+# Global S3 Templates
+s3_buckets:
+  _templates:
+    s3_base:
+      versioning: true
+      encryption: AES256

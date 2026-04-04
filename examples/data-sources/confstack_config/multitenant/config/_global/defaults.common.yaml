@@ -4,18 +4,18 @@ tags:
 
 sqs_queues:
   _templates:
-    base:
+    sqs_base:
       retention: 86400
       dlq: true
       visibility_timeout: 30
 
 dynamodb_tables:
   _templates:
-    base:
+    dynamodb_base:
       billing_mode: PAY_PER_REQUEST
 
 s3_buckets:
   _templates:
-    base:
+    s3_base:
       versioning: true
       encryption: AES256
