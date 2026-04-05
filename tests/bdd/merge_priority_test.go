@@ -23,7 +23,7 @@ var _ = Describe("Merge Priority Engine", func() {
 	})
 
 	AfterEach(func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	})
 
 	Context("When merging 8 layers in priority order (last wins)", func() {

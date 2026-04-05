@@ -39,30 +39,7 @@ eks:
 
 Declare the data source:
 
-```terraform
-terraform {
-  required_providers {
-    confstack = {
-      source = "confstack/confstack"
-    }
-  }
-}
-
-provider "confstack" {}
-
-# Minimal example: two YAML layers merged in order.
-# Layer 0 (base) is loaded first; layer 1 overrides any conflicting keys.
-data "confstack_layered_config" "example" {
-  layers = [
-    "${path.module}/config/base.yaml",
-    "${path.module}/config/prod.yaml",
-  ]
-}
-
-output "config" {
-  value = data.confstack_layered_config.example.config
-}
-```
+{{ tffile "examples/data-sources/confstack_layered_config/basic/main.tf" }}
 
 Access the merged output with `data.confstack_layered_config.example.config.eks.node_size` (returns `"m5.xlarge"` in prod).
 
@@ -89,7 +66,7 @@ Looks up `KEY` in `variables`, then falls back to the OS environment. Errors if 
 
 ```yaml
 network:
-  vpc_id: {{ var "VPC_ID" }}
+  vpc_id: {{ "{{" }} var "VPC_ID" {{ "}}" }}
 ```
 
 ### `secret "KEY"` — inject a secret
@@ -98,7 +75,7 @@ Same lookup order as `var`, but the value becomes `"(sensitive)"` in `config` an
 
 ```yaml
 database:
-  password: {{ secret "DB_PASSWORD" }}
+  password: {{ "{{" }} secret "DB_PASSWORD" {{ "}}" }}
 ```
 
 -> Sprig's `env "KEY"` function also reads OS environment variables, but returns an empty string if missing (no error) and does not consult the `variables` map. Prefer `var "KEY"` for consistent error handling.

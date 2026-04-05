@@ -32,8 +32,14 @@ func TestEngine_VarFromMap(t *testing.T) {
 }
 
 func TestEngine_VarFromEnv(t *testing.T) {
-	os.Setenv("TEST_VAR_12345", "env-value")
-	defer os.Unsetenv("TEST_VAR_12345")
+	if err := os.Setenv("TEST_VAR_12345", "env-value"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_VAR_12345"); err != nil {
+			t.Errorf("failed to unset env var: %v", err)
+		}
+	}()
 
 	e := tmplAdapter.NewEngine()
 	req := newReq()

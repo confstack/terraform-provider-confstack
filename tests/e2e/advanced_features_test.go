@@ -23,10 +23,20 @@ func TestAccLayeredConfigDataSource_metadata(t *testing.T) {
 }
 
 func TestAccLayeredConfigDataSource_envFallback(t *testing.T) {
-	os.Setenv("MY_ENV_VAR", "env-value")
-	os.Setenv("MY_ENV_SECRET", "env-secret")
-	defer os.Unsetenv("MY_ENV_VAR")
-	defer os.Unsetenv("MY_ENV_SECRET")
+	if err := os.Setenv("MY_ENV_VAR", "env-value"); err != nil {
+		t.Fatalf("failed to set env var MY_ENV_VAR: %v", err)
+	}
+	if err := os.Setenv("MY_ENV_SECRET", "env-secret"); err != nil {
+		t.Fatalf("failed to set env var MY_ENV_SECRET: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MY_ENV_VAR"); err != nil {
+			t.Errorf("failed to unset env var MY_ENV_VAR: %v", err)
+		}
+		if err := os.Unsetenv("MY_ENV_SECRET"); err != nil {
+			t.Errorf("failed to unset env var MY_ENV_SECRET: %v", err)
+		}
+	}()
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

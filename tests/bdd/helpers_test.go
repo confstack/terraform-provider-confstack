@@ -49,13 +49,13 @@ func setupFixture(name string) string {
 		if err != nil {
 			return err
 		}
-		defer srcFile.Close()
+		defer func() { _ = srcFile.Close() }()
 
 		destFile, err := os.Create(destPath)
 		if err != nil {
 			return err
 		}
-		defer destFile.Close()
+		defer func() { _ = destFile.Close() }()
 
 		_, err = io.Copy(destFile, srcFile)
 		return err

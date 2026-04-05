@@ -1,0 +1,89 @@
+name: release-on-merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  prepare-release:
+    if: "${{ startsWith(github.event.head_commit.message, 'chore(main): release ') }}"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 1
+          fetch-tags: false
+
+      - name: Compute Release Metadata
+        id: release-meta
+        run: |
+          version="$(jq -r '."."' .release-please-manifest.json)"
+          tag_name="v$version"
+          release_pr_number="$(printf '%s\n' "$GITHUB_HEAD_COMMIT_MESSAGE" | sed -n 's/.*(#\([0-9]\+\)).*/\1/p')"
+
+          if [ -z "$release_pr_number" ]; then
+            echo "::error::Failed to extract the merged release PR number from: $GITHUB_HEAD_COMMIT_MESSAGE"
+            exit 1
+          fi
+
+          {
+            echo "tag_name=$tag_name"
+            echo "release_sha=$GITHUB_SHA"
+            echo "release_pr_number=$release_pr_number"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+
+      - name: Ensure Tag
+        env:
+          TAG_NAME: ${{ steps.release-meta.outputs.tag_name }}
+          RELEASE_SHA: ${{ steps.release-meta.outputs.release_sha }}
+        run: |
+          remote_sha="$(git ls-remote --refs origin "refs/tags/$TAG_NAME" | awk '{print $1}')"
+
+          if [ -z "$remote_sha" ]; then
+            git config user.name github-actions[bot]
+            git config user.email github-actions[bot]@users.noreply.github.com
+            git tag -a "$TAG_NAME" "$RELEASE_SHA" -m "Release $TAG_NAME"
+            git push origin "refs/tags/$TAG_NAME"
+            exit 0
+          fi
+
+          if [ "$remote_sha" = "$RELEASE_SHA" ]; then
+            echo "Tag $TAG_NAME already exists on $RELEASE_SHA; continuing."
+            exit 0
+          fi
+
+          echo "::error::Tag $TAG_NAME already exists on $remote_sha, expected $RELEASE_SHA."
+          exit 1
+
+      - name: Reconcile Release PR Labels
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PR_NUMBER: ${{ steps.release-meta.outputs.release_pr_number }}
+        run: |
+          existing_labels="$(gh pr view "$RELEASE_PR_NUMBER" --json labels --jq '.labels[].name')"
+
+          if printf '%s\n' "$existing_labels" | grep -Fxq "autorelease: pending"; then
+            gh pr edit "$RELEASE_PR_NUMBER" --remove-label "autorelease: pending"
+          fi
+
+          if printf '%s\n' "$existing_labels" | grep -Fxq "autorelease: triggered"; then
+            gh pr edit "$RELEASE_PR_NUMBER" --remove-label "autorelease: triggered"
+          fi
+
+          if ! printf '%s\n' "$existing_labels" | grep -Fxq "autorelease: tagged"; then
+            gh pr edit "$RELEASE_PR_NUMBER" --add-label "autorelease: tagged"
+          fi

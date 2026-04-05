@@ -265,6 +265,21 @@ data "confstack_layered_config" "app" {
 
 ---
 
+## Development & Versioning
+
+This provider uses [Conventional Commits](https://www.conventionalcommits.org/) for automated semantic versioning and changelog generation.
+
+| Prefix | Type | Resulting Version Change |
+|---|---|---|
+| `feat:` | Feature | Minor (e.g., 1.0.0 → 1.1.0) |
+| `fix:` | Bug Fix | Patch (e.g., 1.0.0 → 1.0.1) |
+| `perf:`, `refactor:`, `chore:` | Internal | Patch (if it affects built files) or no release |
+| `BREAKING CHANGE:` | Breaking | Major (e.g., 1.0.0 → 2.0.0) |
+
+Commits to the `main` branch will automatically trigger a new version tag and GitHub release if a version-worthy change is detected.
+
+---
+
 ## Examples
 
 | Example | Description |

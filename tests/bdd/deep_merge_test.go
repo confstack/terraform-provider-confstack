@@ -28,7 +28,7 @@ var _ = Describe("Deep Merge Engine", func() {
 	})
 
 	AfterEach(func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	})
 
 	Context("When performing a deep merge on maps (FR-05)", func() {

@@ -23,7 +23,7 @@ var _ = Describe("Advanced Resolution Logic", func() {
 
 	AfterEach(func() {
 		if tmpDir != "" {
-			os.RemoveAll(tmpDir)
+			_ = os.RemoveAll(tmpDir)
 		}
 	})
 

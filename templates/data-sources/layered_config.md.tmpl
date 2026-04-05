@@ -1,0 +1,107 @@
+---
+page_title: "confstack_layered_config Data Source - confstack"
+description: |-
+  Merges an ordered list of YAML layer files into a single configuration map.
+  Supports recursive deep merge, Go template injection for variables and secrets,
+  and template inheritance for DRY configuration patterns.
+---
+
+# confstack_layered_config (Data Source)
+
+Merges an ordered list of YAML layer files into a single configuration map. The last layer wins on conflicts. Supports Go template injection (`var`/`secret`) and template inheritance (`_templates`/`_inherit`).
+
+## Basic Example
+
+Two YAML files merged in order — `base.yaml` provides defaults, `prod.yaml` overrides specific values.
+
+{{ tffile "examples/data-sources/confstack_layered_config/basic/main.tf" }}
+
+`config/base.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/basic/config/base.yaml" }}
+
+`config/prod.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/basic/config/prod.yaml" }}
+
+Result: `config.eks.node_size = "m5.xlarge"`, `config.tags.managed_by = "opentofu"` (kept from base), `config.tags.environment = "prod"` (added by prod layer).
+
+## Variables and Secrets
+
+Inject runtime values into YAML layers using Go template functions. Variables appear as-is in `config`; secrets are redacted as `"(sensitive)"` and only available in plaintext via `sensitive_config`.
+
+{{ tffile "examples/data-sources/confstack_layered_config/templating/main.tf" }}
+
+`config/base.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/templating/config/base.yaml" }}
+
+-> Sprig's `env "KEY"` also reads OS environment variables but returns an empty string on missing keys (no error) and does not check `variables`. Prefer `var "KEY"` for consistent error handling.
+
+## Inheritance (`_templates` / `_inherit`)
+
+Define reusable config blocks and apply them by name. Useful for sharing base attributes across similar resources without repeating yourself.
+
+{{ tffile "examples/data-sources/confstack_layered_config/inheritance/main.tf" }}
+
+`config/base.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/inheritance/config/base.yaml" }}
+
+Rules:
+- `_inherit` accepts a string (single name), a list of strings, or a list of `{template, except}` objects to selectively exclude keys.
+- Templates are collected globally from all loaded layers and must have unique names.
+- Templates cannot themselves contain `_inherit`.
+- Both `_templates` and `_inherit` are stripped from all outputs.
+
+## Dynamic Multi-Layer Stack
+
+Use `compact()` and `on_missing_layer = "skip"` to build optional layer stacks. Adding a new environment or tenant only requires a YAML file — no HCL changes.
+
+{{ tffile "examples/data-sources/confstack_layered_config/complete/main.tf" }}
+
+`config/base.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/complete/config/base.yaml" }}
+
+`config/prod.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/complete/config/prod.yaml" }}
+
+`config/tenants/acme.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/complete/config/tenants/acme.yaml" }}
+
+## Merge Behavior
+
+Layers are processed in index order — **index 0 is the base (lowest priority), the last entry wins**.
+
+| Value type | Merge strategy |
+|---|---|
+| Map | Recursively merged; new keys added, existing keys overridden |
+| Scalar (string, number, bool) | Replaced entirely by the higher-priority layer |
+| List | Replaced entirely (not concatenated) |
+| `null` | Deletes the key from the result |
+
+Type mismatches between layers (e.g., a map in one layer and a scalar in another at the same path) produce an error.
+
+## Flat Output
+
+`flat_config` collapses all nested keys into a `map(string)` using `flat_separator` (default `.`). All values are converted to strings. Useful for passing individual config values directly to resource arguments without attribute traversal.
+
+```hcl
+resource "aws_db_instance" "main" {
+  address = data.confstack_layered_config.app.flat_config["database.host"]
+  port    = data.confstack_layered_config.app.flat_config["database.port"]
+}
+```
+
+## Missing Layer Handling
+
+| `on_missing_layer` | Behavior when a layer file is absent |
+|---|---|
+| `"error"` (default) | Plan/apply fails immediately. |
+| `"warn"` | Warning logged; layer skipped; resolution continues. |
+| `"skip"` | Layer silently skipped; resolution continues. |
+
+{{ .SchemaMarkdown | trimspace }}

@@ -28,7 +28,7 @@ var _ = Describe("Template Inheritance Engine", func() {
 	})
 
 	AfterEach(func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	})
 
 	Context("When resolving templates and inheritance (FR-06)", func() {
