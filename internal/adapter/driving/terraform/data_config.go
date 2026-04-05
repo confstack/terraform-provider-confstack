@@ -2,6 +2,8 @@ package terraform
 
 import (
 	"context"
+	"fmt"
+	"sort"
 
 	"github.com/confstack/terraform-provider-confstack/internal/adapter/driven/filesystem"
 	"github.com/confstack/terraform-provider-confstack/internal/adapter/driven/logging"
@@ -15,39 +17,36 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var _ datasource.DataSource = &ConfigDataSource{}
+var _ datasource.DataSource = &LayeredConfigDataSource{}
 
-// ConfigDataSource implements the confstack_config data source.
-type ConfigDataSource struct {
+// LayeredConfigDataSource implements the confstack_layered_config data source.
+type LayeredConfigDataSource struct {
 	resolver *usecase.Resolver
 }
 
-// NewConfigDataSource returns a new ConfigDataSource factory function.
-func NewConfigDataSource() datasource.DataSource {
-	return &ConfigDataSource{}
+// NewLayeredConfigDataSource returns a new LayeredConfigDataSource factory function.
+func NewLayeredConfigDataSource() datasource.DataSource {
+	return &LayeredConfigDataSource{}
 }
 
-// Metadata sets the type name for the confstack_config data source.
-func (d *ConfigDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_config"
+// Metadata sets the type name for the confstack_layered_config data source.
+func (d *LayeredConfigDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_layered_config"
 }
 
-// Schema defines the attributes accepted and produced by the confstack_config data source.
-func (d *ConfigDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+// Schema defines the attributes accepted and produced by the confstack_layered_config data source.
+func (d *LayeredConfigDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Resolves layered, hierarchical YAML configuration into a single merged output.",
+		Description: "Merges an ordered list of YAML layer files into a single configuration map. Last layer wins.",
 		Attributes: map[string]schema.Attribute{
-			"config_dir": schema.StringAttribute{
+			"layers": schema.ListAttribute{
 				Required:    true,
-				Description: "Path to the configuration directory (absolute or relative to the module).",
+				ElementType: types.StringType,
+				Description: "Ordered list of YAML file paths to load and merge. Index 0 is lowest priority; last entry is highest.",
 			},
-			"environment": schema.StringAttribute{
-				Required:    true,
-				Description: "Environment name. Must match a subdirectory in config_dir.",
-			},
-			"tenant": schema.StringAttribute{
+			"on_missing_layer": schema.StringAttribute{
 				Optional:    true,
-				Description: "Tenant identifier. Omit to load only common files.",
+				Description: `How to handle a layer file that does not exist. One of: "error" (default), "warn", "skip".`,
 			},
 			"variables": schema.MapAttribute{
 				Optional:    true,
@@ -60,70 +59,55 @@ func (d *ConfigDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 				ElementType: types.StringType,
 				Description: "Sensitive variables for Go template {{ secret \"KEY\" }} injection.",
 			},
-			"global_dir": schema.StringAttribute{
+			"flat_separator": schema.StringAttribute{
 				Optional:    true,
-				Description: "Name of the global scope directory. Default: \"_global\".",
+				Description: `Separator used when flattening nested keys into flat_config. Default: ".".`,
 			},
-			"common_slug": schema.StringAttribute{
-				Optional:    true,
-				Description: "Slug used for files that apply to all tenants. Default: \"common\".",
-			},
-			"defaults_prefix": schema.StringAttribute{
-				Optional:    true,
-				Description: "Filename prefix for defaults files. Default: \"defaults\".",
-			},
-			"templates_key": schema.StringAttribute{
-				Optional:    true,
-				Description: "Reserved YAML key for template definitions. Default: \"_templates\".",
-			},
-			"inherit_key": schema.StringAttribute{
-				Optional:    true,
-				Description: "Reserved YAML key for inheritance directives. Default: \"_inherit\".",
-			},
-			"file_extension": schema.StringAttribute{
-				Optional:    true,
-				Description: "File extension to match. Default: \"yaml\".",
-			},
-			"output": schema.DynamicAttribute{
+			"config": schema.DynamicAttribute{
 				Computed:    true,
 				Description: "The fully resolved configuration map (secrets are redacted).",
 			},
-			"sensitive_output": schema.DynamicAttribute{
+			"sensitive_config": schema.DynamicAttribute{
 				Computed:    true,
 				Sensitive:   true,
 				Description: "The fully resolved configuration map with secrets in plaintext.",
 			},
-			"loaded_files": schema.ListAttribute{
+			"flat_config": schema.MapAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
-				Description: "Ordered list of files that were loaded, in merge priority order.",
+				Description: "Flattened view of config with separator-delimited keys. All values are converted to strings.",
+			},
+			"loaded_layers": schema.ListAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Ordered list of layer paths that were successfully loaded.",
+			},
+			"secret_paths": schema.ListAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "List of flat paths (dot-delimited) that contain secret values.",
 			},
 		},
 	}
 }
 
-// configDataSourceModel is the Terraform state model for confstack_config.
-type configDataSourceModel struct {
-	ConfigDir       types.String  `tfsdk:"config_dir"`
-	Environment     types.String  `tfsdk:"environment"`
-	Tenant          types.String  `tfsdk:"tenant"`
+// layeredConfigDataSourceModel is the Terraform state model for confstack_layered_config.
+type layeredConfigDataSourceModel struct {
+	Layers          types.List    `tfsdk:"layers"`
+	OnMissingLayer    types.String  `tfsdk:"on_missing_layer"`
 	Variables       types.Map     `tfsdk:"variables"`
 	Secrets         types.Map     `tfsdk:"secrets"`
-	GlobalDir       types.String  `tfsdk:"global_dir"`
-	CommonSlug      types.String  `tfsdk:"common_slug"`
-	DefaultsPrefix  types.String  `tfsdk:"defaults_prefix"`
-	TemplatesKey    types.String  `tfsdk:"templates_key"`
-	InheritKey      types.String  `tfsdk:"inherit_key"`
-	FileExtension   types.String  `tfsdk:"file_extension"`
-	Output          types.Dynamic `tfsdk:"output"`
-	SensitiveOutput types.Dynamic `tfsdk:"sensitive_output"`
-	LoadedFiles     types.List    `tfsdk:"loaded_files"`
+	FlatSeparator   types.String  `tfsdk:"flat_separator"`
+	Config          types.Dynamic `tfsdk:"config"`
+	SensitiveConfig types.Dynamic `tfsdk:"sensitive_config"`
+	FlatConfig      types.Map     `tfsdk:"flat_config"`
+	LoadedLayers    types.List    `tfsdk:"loaded_layers"`
+	SecretPaths     types.List    `tfsdk:"secret_paths"`
 }
 
-// Configure builds the resolver with real adapters. This happens once per data source configure call.
-func (d *ConfigDataSource) Configure(_ context.Context, _ datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+// Configure builds the resolver with real adapters.
+func (d *LayeredConfigDataSource) Configure(_ context.Context, _ datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	d.resolver = usecase.NewResolver(
-		filesystem.NewDiscoverer(),
 		filesystem.NewReader(),
 		yamlAdapter.NewParser(),
 		tmplAdapter.NewEngine(),
@@ -131,23 +115,30 @@ func (d *ConfigDataSource) Configure(_ context.Context, _ datasource.ConfigureRe
 	)
 }
 
-// optionalString returns the string value if the attribute is set, otherwise empty string.
-func optionalString(attr types.String) string {
-	if attr.IsNull() || attr.IsUnknown() {
+// optionalString returns the string value if set, otherwise empty string.
+func optionalString(a types.String) string {
+	if a.IsNull() || a.IsUnknown() {
 		return ""
 	}
-	return attr.ValueString()
+	return a.ValueString()
 }
 
 // Read resolves the configuration and populates the state attributes.
-func (d *ConfigDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state configDataSourceModel
+func (d *LayeredConfigDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state layeredConfigDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Extract variables and secrets first (diagnostic operations)
+	// Extract layers list.
+	var layers []string
+	resp.Diagnostics.Append(state.Layers.ElementsAs(ctx, &layers, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Extract variables and secrets.
 	vars := map[string]string{}
 	if !state.Variables.IsNull() && !state.Variables.IsUnknown() {
 		resp.Diagnostics.Append(state.Variables.ElementsAs(ctx, &vars, false)...)
@@ -164,40 +155,21 @@ func (d *ConfigDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		}
 	}
 
-	// Build optional overrides
+	// Build functional options.
 	opts := []func(*domain.ResolveRequest){
 		domain.WithVariables(vars),
 		domain.WithSecrets(secrets),
 	}
-	if t := optionalString(state.Tenant); t != "" {
-		opts = append(opts, domain.WithTenant(t))
+	if ml := optionalString(state.OnMissingLayer); ml != "" {
+		opts = append(opts, domain.WithOnMissingLayer(ml))
 	}
-	if gd := optionalString(state.GlobalDir); gd != "" {
-		opts = append(opts, domain.WithGlobalDir(gd))
-	}
-	if cs := optionalString(state.CommonSlug); cs != "" {
-		opts = append(opts, domain.WithCommonSlug(cs))
-	}
-	if dp := optionalString(state.DefaultsPrefix); dp != "" {
-		opts = append(opts, domain.WithDefaultsPrefix(dp))
-	}
-	if tk := optionalString(state.TemplatesKey); tk != "" {
-		opts = append(opts, domain.WithTemplatesKey(tk))
-	}
-	if ik := optionalString(state.InheritKey); ik != "" {
-		opts = append(opts, domain.WithInheritKey(ik))
-	}
-	if fe := optionalString(state.FileExtension); fe != "" {
-		opts = append(opts, domain.WithFileExtension(fe))
+	if fs := optionalString(state.FlatSeparator); fs != "" {
+		opts = append(opts, domain.WithFlatSeparator(fs))
 	}
 
-	resolveReq, err := domain.NewResolveRequest(
-		state.ConfigDir.ValueString(),
-		state.Environment.ValueString(),
-		opts...,
-	)
+	resolveReq, err := domain.NewResolveRequest(layers, opts...)
 	if err != nil {
-		resp.Diagnostics.AddError("Invalid config resolution request", err.Error())
+		resp.Diagnostics.AddError("Invalid layered config request", err.Error())
 		return
 	}
 
@@ -207,32 +179,62 @@ func (d *ConfigDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	// Convert output map to types.Dynamic
-	outputVal, err := mapToTerraformDynamic(result.Output)
+	// Convert config to types.Dynamic.
+	configVal, err := mapToTerraformDynamic(result.Output)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert output to Terraform value", err.Error())
+		resp.Diagnostics.AddError("Failed to convert config to Terraform value", err.Error())
 		return
 	}
-	state.Output = outputVal
+	state.Config = configVal
 
-	sensOutputVal, err := mapToTerraformDynamic(result.SensitiveOutput)
+	// Convert sensitive_config to types.Dynamic.
+	sensConfigVal, err := mapToTerraformDynamic(result.SensitiveOutput)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert sensitive_output to Terraform value", err.Error())
+		resp.Diagnostics.AddError("Failed to convert sensitive_config to Terraform value", err.Error())
 		return
 	}
-	state.SensitiveOutput = sensOutputVal
+	state.SensitiveConfig = sensConfigVal
 
-	// Build loaded_files list
-	loadedFileElems := make([]attr.Value, len(result.LoadedFiles))
-	for i, f := range result.LoadedFiles {
-		loadedFileElems[i] = types.StringValue(f)
+	// Convert flat_config to types.Map(string).
+	flatElems := make(map[string]attr.Value, len(result.FlatOutput))
+	for k, v := range result.FlatOutput {
+		flatElems[k] = types.StringValue(fmt.Sprintf("%v", v))
 	}
-	loadedFilesList, diags := types.ListValue(types.StringType, loadedFileElems)
+	flatConfigVal, diags := types.MapValue(types.StringType, flatElems)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state.LoadedFiles = loadedFilesList
+	state.FlatConfig = flatConfigVal
+
+	// Build loaded_layers list.
+	loadedElems := make([]attr.Value, len(result.LoadedLayers))
+	for i, p := range result.LoadedLayers {
+		loadedElems[i] = types.StringValue(p)
+	}
+	loadedList, diags := types.ListValue(types.StringType, loadedElems)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.LoadedLayers = loadedList
+
+	// Build secret_paths list (sorted for determinism).
+	secretPathSlice := make([]string, 0, len(result.SecretPaths))
+	for p := range result.SecretPaths {
+		secretPathSlice = append(secretPathSlice, p)
+	}
+	sort.Strings(secretPathSlice)
+	secretElems := make([]attr.Value, len(secretPathSlice))
+	for i, p := range secretPathSlice {
+		secretElems[i] = types.StringValue(p)
+	}
+	secretList, diags := types.ListValue(types.StringType, secretElems)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.SecretPaths = secretList
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

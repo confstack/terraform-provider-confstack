@@ -60,13 +60,8 @@ func (e *Engine) Process(ctx context.Context, data []byte, filePath string, req 
 		return nil, nil, &domain.TemplateRenderError{FilePath: filePath, Detail: "parse", Cause: err}
 	}
 
-	templateCtx := map[string]any{
-		"Environment": req.Environment,
-		"Tenant":      req.Tenant,
-	}
-
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, templateCtx); err != nil {
+	if err := tmpl.Execute(&buf, nil); err != nil {
 		return nil, nil, &domain.TemplateRenderError{FilePath: filePath, Detail: "execution", Cause: err}
 	}
 

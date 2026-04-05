@@ -2,6 +2,7 @@ package bdd_test
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/confstack/terraform-provider-confstack/internal/usecase"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,18 +11,14 @@ import (
 
 var _ = Describe("Merge Priority Engine", func() {
 	var (
-		tmpDir      string
-		environment string
-		tenant      string
-		resolver    *usecase.Resolver
-		err         error
-		result      map[string]interface{}
+		tmpDir   string
+		resolver *usecase.Resolver
+		err      error
+		result   map[string]interface{}
 	)
 
 	BeforeEach(func() {
 		tmpDir = setupFixture("merge_priority")
-		environment = "dev"
-		tenant = "acme"
 		resolver = newTestResolver()
 	})
 
@@ -29,20 +26,30 @@ var _ = Describe("Merge Priority Engine", func() {
 		os.RemoveAll(tmpDir)
 	})
 
-	Context("When evaluating the 8-level priority order (FR-04)", func() {
+	Context("When merging 8 layers in priority order (last wins)", func() {
 		BeforeEach(func() {
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			layers := []string{
+				filepath.Join(tmpDir, "layer1.yaml"),
+				filepath.Join(tmpDir, "layer2.yaml"),
+				filepath.Join(tmpDir, "layer3.yaml"),
+				filepath.Join(tmpDir, "layer4.yaml"),
+				filepath.Join(tmpDir, "layer5.yaml"),
+				filepath.Join(tmpDir, "layer6.yaml"),
+				filepath.Join(tmpDir, "layer7.yaml"),
+				filepath.Join(tmpDir, "layer8.yaml"),
+			}
+			result, err = resolveConfig(resolver, layers)
 		})
 
-		It("should successfully merge all levels without error", func() {
+		It("should successfully merge all layers without error", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should retain the scalar value from the highest priority level (8)", func() {
+		It("should retain the scalar value from the highest priority layer (8)", func() {
 			Expect(result).To(HaveKeyWithValue("level", 8))
 		})
 
-		It("should preserve keys from all levels in the merged map", func() {
+		It("should preserve unique keys contributed by each layer", func() {
 			values, ok := result["values"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
 			Expect(values).To(HaveKeyWithValue("l1", true))
@@ -55,7 +62,7 @@ var _ = Describe("Merge Priority Engine", func() {
 			Expect(values).To(HaveKeyWithValue("l8", true))
 		})
 
-		It("should resolve overridden keys to the highest priority level", func() {
+		It("should resolve overridden keys to the highest priority layer", func() {
 			values, ok := result["values"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
 			Expect(values).To(HaveKeyWithValue("override_me", 8))

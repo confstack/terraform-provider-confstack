@@ -4,10 +4,10 @@ import "fmt"
 
 // MergeConflictError is returned when a deep merge encounters incompatible types at the same path.
 type MergeConflictError struct {
-	Path       string
-	BaseType   string
+	Path        string
+	BaseType    string
 	OverlayType string
-	BaseFile   string
+	BaseFile    string
 	OverlayFile string
 }
 
@@ -45,18 +45,6 @@ type TemplateWithInheritError struct {
 func (e *TemplateWithInheritError) Error() string {
 	return fmt.Sprintf("template %q cannot contain %q; templates must not inherit from other templates",
 		e.TemplateName, e.InheritKey)
-}
-
-// CaseCollisionError is returned when two files in the same directory differ only by case.
-type CaseCollisionError struct {
-	Dir   string
-	FileA string
-	FileB string
-}
-
-func (e *CaseCollisionError) Error() string {
-	return fmt.Sprintf("case collision in directory %q: files %q and %q differ only by case",
-		e.Dir, e.FileA, e.FileB)
 }
 
 // MissingVariableError is returned when a var() or secret() template function references a key not found in inputs or environment.
@@ -98,25 +86,13 @@ func (e *FileReadError) Error() string {
 
 func (e *FileReadError) Unwrap() error { return e.Cause }
 
-// ConfigDirNotFoundError is returned when config_dir does not exist.
-type ConfigDirNotFoundError struct {
-	ConfigDir string
+// LayerNotFoundError is returned when a layer file does not exist and on_missing_layer = "error".
+type LayerNotFoundError struct {
+	LayerPath string
 }
 
-func (e *ConfigDirNotFoundError) Error() string {
-	return fmt.Sprintf("config_dir %q does not exist", e.ConfigDir)
-}
-
-// SymlinkEscapeError is returned when a file resolves outside config_dir.
-type SymlinkEscapeError struct {
-	FilePath   string
-	ResolvedTo string
-	ConfigDir  string
-}
-
-func (e *SymlinkEscapeError) Error() string {
-	return fmt.Sprintf("symlink escape: file %q resolves to %q which is outside config_dir %q",
-		e.FilePath, e.ResolvedTo, e.ConfigDir)
+func (e *LayerNotFoundError) Error() string {
+	return fmt.Sprintf("layer file %q does not exist", e.LayerPath)
 }
 
 // TemplateRenderError is returned when template processing fails.

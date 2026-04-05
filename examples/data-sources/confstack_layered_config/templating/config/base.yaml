@@ -1,0 +1,9 @@
+network:
+  vpc_id: {{ var "VPC_ID" }}
+  cluster: {{ var "CLUSTER_NAME" }}
+
+database:
+  password: {{ secret "DB_PASSWORD" }}
+
+integrations:
+  api_key: {{ secret "API_KEY" }}

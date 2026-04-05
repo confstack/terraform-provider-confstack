@@ -1,4 +1,0 @@
-eks:
-  node_size: t3.small
-  min_nodes: 1
-  max_nodes: 3

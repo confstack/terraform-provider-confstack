@@ -2,7 +2,7 @@ package output
 
 import "context"
 
-// FileReader reads the raw bytes of a file, validating that it does not escape configDir via symlinks.
+// FileReader reads the raw bytes of a file.
 type FileReader interface {
-	Read(ctx context.Context, path string, configDir string) ([]byte, error)
+	Read(ctx context.Context, path string) ([]byte, error)
 }

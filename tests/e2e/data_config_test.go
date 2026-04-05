@@ -29,39 +29,39 @@ func loadFixtureConfig(t *testing.T, name string) string {
 	return strings.ReplaceAll(string(hclBytes), "{{CONFIG_DIR}}", filepath.ToSlash(fixturePath))
 }
 
-func TestAccConfigDataSource_basic(t *testing.T) {
+func TestAccLayeredConfigDataSource_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: loadFixtureConfig(t, "basic"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.confstack_config.test", "output.tags.team", "platform"),
-					resource.TestCheckResourceAttr("data.confstack_config.test", "output.eks.node_size", "m5.xlarge"),
-					resource.TestCheckResourceAttr("data.confstack_config.test", "output.sqs_queues.orders.retention", "86400"),
-					resource.TestCheckResourceAttr("data.confstack_config.test", "output.sqs_queues.orders.dlq", "true"),
-					resource.TestCheckResourceAttr("data.confstack_config.test", "output.sqs_queues.orders.visibility_timeout", "120"),
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.tags.team", "platform"),
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.eks.node_size", "m5.xlarge"),
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.sqs_queues.orders.retention", "86400"),
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.sqs_queues.orders.dlq", "true"),
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.sqs_queues.orders.visibility_timeout", "120"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccConfigDataSource_templating(t *testing.T) {
+func TestAccLayeredConfigDataSource_templating(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: loadFixtureConfig(t, "templating"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.confstack_config.test", "output.db.vpc_id", "vpc-1234"),
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.db.vpc_id", "vpc-1234"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccConfigDataSource_errors(t *testing.T) {
+func TestAccLayeredConfigDataSource_errors(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{

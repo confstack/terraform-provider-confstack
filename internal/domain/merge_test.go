@@ -145,10 +145,10 @@ func TestDeepMerge_DeepNesting(t *testing.T) {
 
 func TestMergeAll_PriorityOrder(t *testing.T) {
 	files := []domain.DiscoveredFile{
-		{Path: "p1", RelPath: "p1", Priority: 1},
-		{Path: "p3", RelPath: "p3", Priority: 3},
-		{Path: "p5", RelPath: "p5", Priority: 5},
-		{Path: "p8", RelPath: "p8", Priority: 8},
+		{Path: "p1", Priority: 1},
+		{Path: "p3", Priority: 3},
+		{Path: "p5", Priority: 5},
+		{Path: "p8", Priority: 8},
 	}
 	data := map[string][]map[string]any{
 		"p1": {{"key": "p1_value", "p1_only": "yes"}},

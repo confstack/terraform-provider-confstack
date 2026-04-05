@@ -11,9 +11,15 @@ import (
 	"github.com/confstack/terraform-provider-confstack/internal/domain"
 )
 
+// newReq creates a minimal ResolveRequest for testing.
+func newReq() domain.ResolveRequest {
+	req, _ := domain.NewResolveRequest([]string{"test.yaml"})
+	return req
+}
+
 func TestEngine_VarFromMap(t *testing.T) {
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 	req.Variables = map[string]string{"VPC_ID": "vpc-12345"}
 
 	out, _, err := e.Process(context.Background(), []byte(`vpc: {{ var "VPC_ID" }}`), "test.yaml", req, "nonce1")
@@ -30,7 +36,7 @@ func TestEngine_VarFromEnv(t *testing.T) {
 	defer os.Unsetenv("TEST_VAR_12345")
 
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 
 	out, _, err := e.Process(context.Background(), []byte(`val: {{ var "TEST_VAR_12345" }}`), "test.yaml", req, "nonce1")
 	if err != nil {
@@ -43,7 +49,7 @@ func TestEngine_VarFromEnv(t *testing.T) {
 
 func TestEngine_VarMissing(t *testing.T) {
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 
 	_, _, err := e.Process(context.Background(), []byte(`{{ var "DEFINITELY_NOT_SET_XYZ" }}`), "test.yaml", req, "nonce1")
 	if err == nil {
@@ -57,7 +63,7 @@ func TestEngine_VarMissing(t *testing.T) {
 
 func TestEngine_SecretFromMap(t *testing.T) {
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 	req.Secrets = map[string]string{"DB_PASS": "s3cr3t"}
 
 	out, sentinels, err := e.Process(context.Background(), []byte(`password: {{ secret "DB_PASS" }}`), "test.yaml", req, "nonce1")
@@ -84,7 +90,7 @@ func TestEngine_SecretFromMap(t *testing.T) {
 
 func TestEngine_SecretMissing(t *testing.T) {
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 
 	_, _, err := e.Process(context.Background(), []byte(`{{ secret "MISSING_SECRET_XYZ" }}`), "test.yaml", req, "nonce1")
 	if err == nil {
@@ -96,31 +102,10 @@ func TestEngine_SecretMissing(t *testing.T) {
 	}
 }
 
-func TestEngine_EnvironmentAndTenant(t *testing.T) {
-	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
-	req.Environment = "prod"
-	req.Tenant = "acme"
-
-	out, _, err := e.Process(context.Background(), []byte(`env: {{ .Environment }}
-tenant: {{ .Tenant }}`), "test.yaml", req, "nonce1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	outStr := string(out)
-	if !strings.Contains(outStr, "env: prod") {
-		t.Errorf("expected env: prod in output, got %s", outStr)
-	}
-	if !strings.Contains(outStr, "tenant: acme") {
-		t.Errorf("expected tenant: acme in output, got %s", outStr)
-	}
-}
-
 func TestEngine_SprigFunctions(t *testing.T) {
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 
-	// upper is a Sprig function
 	out, _, err := e.Process(context.Background(), []byte(`value: {{ "hello" | upper }}`), "test.yaml", req, "nonce1")
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +117,7 @@ func TestEngine_SprigFunctions(t *testing.T) {
 
 func TestEngine_SentinelDifferentNonces(t *testing.T) {
 	e := tmplAdapter.NewEngine()
-	req := domain.DefaultResolveRequest()
+	req := newReq()
 	req.Secrets = map[string]string{"KEY": "value"}
 
 	_, s1, _ := e.Process(context.Background(), []byte(`{{ secret "KEY" }}`), "test.yaml", req, "nonce-a")

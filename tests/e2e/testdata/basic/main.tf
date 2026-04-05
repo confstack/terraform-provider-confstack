@@ -1,7 +1,8 @@
 provider "confstack" {}
 
-data "confstack_config" "test" {
-  config_dir  = "{{CONFIG_DIR}}"
-  environment = "prod"
-  tenant      = "acme"
+data "confstack_layered_config" "test" {
+  layers = [
+    "{{CONFIG_DIR}}/_global/defaults.common.yaml",
+    "{{CONFIG_DIR}}/prod/compute.acme.yaml",
+  ]
 }

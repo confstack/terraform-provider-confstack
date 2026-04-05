@@ -2,6 +2,7 @@ package bdd_test
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/confstack/terraform-provider-confstack/internal/usecase"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,19 +11,20 @@ import (
 
 var _ = Describe("Deep Merge Engine", func() {
 	var (
-		tmpDir      string
-		environment string
-		tenant      string
-		resolver    *usecase.Resolver
-		err         error
-		result      map[string]interface{}
+		tmpDir   string
+		layers   []string
+		resolver *usecase.Resolver
+		err      error
+		result   map[string]interface{}
 	)
 
 	BeforeEach(func() {
 		tmpDir = setupFixture("deep_merge")
-		environment = "dev"
-		tenant = "acme"
 		resolver = newTestResolver()
+		layers = []string{
+			filepath.Join(tmpDir, "_global", "defaults.common.yaml"),
+			filepath.Join(tmpDir, "dev", "config.common.yaml"),
+		}
 	})
 
 	AfterEach(func() {
@@ -31,7 +33,7 @@ var _ = Describe("Deep Merge Engine", func() {
 
 	Context("When performing a deep merge on maps (FR-05)", func() {
 		BeforeEach(func() {
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			result, err = resolveConfig(resolver, layers)
 		})
 
 		It("should successfully merge without error", func() {
@@ -62,7 +64,7 @@ var _ = Describe("Deep Merge Engine", func() {
 
 	Context("When replacing lists (FR-05)", func() {
 		BeforeEach(func() {
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			result, err = resolveConfig(resolver, layers)
 		})
 
 		It("should successfully resolve without error", func() {
@@ -79,7 +81,7 @@ var _ = Describe("Deep Merge Engine", func() {
 
 	Context("When deleting keys with null (FR-05)", func() {
 		BeforeEach(func() {
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			result, err = resolveConfig(resolver, layers)
 		})
 
 		It("should successfully resolve without error", func() {

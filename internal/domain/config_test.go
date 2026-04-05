@@ -6,16 +6,13 @@ import (
 	"github.com/confstack/terraform-provider-confstack/internal/domain"
 )
 
-func TestDefaultResolveRequest(t *testing.T) {
-	req := domain.DefaultResolveRequest()
-	if req.GlobalDir != "_global" {
-		t.Errorf("expected GlobalDir=_global, got %q", req.GlobalDir)
+func TestNewResolveRequest_Defaults(t *testing.T) {
+	req, err := domain.NewResolveRequest([]string{"a.yaml", "b.yaml"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if req.CommonSlug != "common" {
-		t.Errorf("expected CommonSlug=common, got %q", req.CommonSlug)
-	}
-	if req.DefaultsPrefix != "defaults" {
-		t.Errorf("expected DefaultsPrefix=defaults, got %q", req.DefaultsPrefix)
+	if req.OnMissingLayer != "error" {
+		t.Errorf("expected OnMissingLayer=error, got %q", req.OnMissingLayer)
 	}
 	if req.TemplatesKey != "_templates" {
 		t.Errorf("expected TemplatesKey=_templates, got %q", req.TemplatesKey)
@@ -23,22 +20,71 @@ func TestDefaultResolveRequest(t *testing.T) {
 	if req.InheritKey != "_inherit" {
 		t.Errorf("expected InheritKey=_inherit, got %q", req.InheritKey)
 	}
-	if req.FileExtension != "yaml" {
-		t.Errorf("expected FileExtension=yaml, got %q", req.FileExtension)
+	if req.FlatSeparator != "." {
+		t.Errorf("expected FlatSeparator=., got %q", req.FlatSeparator)
+	}
+	if len(req.Layers) != 2 {
+		t.Errorf("expected 2 layers, got %d", len(req.Layers))
+	}
+}
+
+func TestNewResolveRequest_EmptyLayers(t *testing.T) {
+	_, err := domain.NewResolveRequest([]string{})
+	if err == nil {
+		t.Error("expected error for empty layers")
+	}
+}
+
+func TestNewResolveRequest_InvalidOnMissingLayer(t *testing.T) {
+	_, err := domain.NewResolveRequest(
+		[]string{"a.yaml"},
+		domain.WithOnMissingLayer("bogus"),
+	)
+	if err == nil {
+		t.Error("expected error for invalid on_missing_layer")
+	}
+}
+
+func TestNewResolveRequest_ValidOnMissingLayerValues(t *testing.T) {
+	for _, v := range []string{"error", "warn", "skip"} {
+		_, err := domain.NewResolveRequest(
+			[]string{"a.yaml"},
+			domain.WithOnMissingLayer(v),
+		)
+		if err != nil {
+			t.Errorf("unexpected error for on_missing_layer=%q: %v", v, err)
+		}
+	}
+}
+
+func TestNewResolveRequest_WithOptions(t *testing.T) {
+	req, err := domain.NewResolveRequest(
+		[]string{"base.yaml"},
+		domain.WithOnMissingLayer("skip"),
+		domain.WithVariables(map[string]string{"FOO": "bar"}),
+		domain.WithFlatSeparator("/"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if req.OnMissingLayer != "skip" {
+		t.Errorf("expected OnMissingLayer=skip, got %q", req.OnMissingLayer)
+	}
+	if req.Variables["FOO"] != "bar" {
+		t.Errorf("expected Variables[FOO]=bar, got %q", req.Variables["FOO"])
+	}
+	if req.FlatSeparator != "/" {
+		t.Errorf("expected FlatSeparator=/, got %q", req.FlatSeparator)
 	}
 }
 
 func TestDiscoveredFile(t *testing.T) {
 	f := domain.DiscoveredFile{
-		Path:     "/config/_global/defaults.common.yaml",
-		RelPath:  "_global/defaults.common.yaml",
-		Scope:    "_global",
-		Prefix:   "defaults",
-		Slug:     "common",
-		Priority: 1,
+		Path:     "/config/base.yaml",
+		Priority: 0,
 	}
-	if f.Priority != 1 {
-		t.Errorf("expected priority 1, got %d", f.Priority)
+	if f.Priority != 0 {
+		t.Errorf("expected priority 0, got %d", f.Priority)
 	}
 }
 
@@ -50,8 +96,7 @@ func TestErrorFormatting(t *testing.T) {
 		BaseFile:    "base.yaml",
 		OverlayFile: "overlay.yaml",
 	}
-	msg := err.Error()
-	if msg == "" {
+	if err.Error() == "" {
 		t.Error("expected non-empty error message")
 	}
 
@@ -70,7 +115,7 @@ func TestErrorFormatting(t *testing.T) {
 		t.Error("expected non-empty error message")
 	}
 
-	err5 := &domain.CaseCollisionError{Dir: "/config", FileA: "App.yaml", FileB: "app.yaml"}
+	err5 := &domain.LayerNotFoundError{LayerPath: "/config/missing.yaml"}
 	if err5.Error() == "" {
 		t.Error("expected non-empty error message")
 	}

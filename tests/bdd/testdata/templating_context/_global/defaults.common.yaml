@@ -1,3 +1,1 @@
-env_name: {{ .Environment | upper }}
-tenant_name: {{ .Tenant | default "no-tenant" }}
 sprig_test: {{ "hello world" | upper }}

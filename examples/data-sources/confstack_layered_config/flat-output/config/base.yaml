@@ -1,0 +1,12 @@
+database:
+  host: db.example.internal
+  port: 5432
+  name: myapp
+
+eks:
+  node_size: m5.xlarge
+  min_nodes: 3
+
+tags:
+  managed_by: opentofu
+  team: platform

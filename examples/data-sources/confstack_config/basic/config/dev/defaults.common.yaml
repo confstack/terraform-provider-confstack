@@ -1,7 +1,0 @@
-tags:
-  billing: dev-team
-  environment: dev
-
-compute:
-  instance_type: t3.micro
-  min_nodes: 1

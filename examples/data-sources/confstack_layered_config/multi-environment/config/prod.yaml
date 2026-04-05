@@ -1,0 +1,6 @@
+tags:
+  environment: prod
+
+database:
+  instance_type: db.r5.large
+  multi_az: true

@@ -38,13 +38,12 @@ func (p *ConfstackProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 
 // Configure is a no-op: the confstack provider has no provider-level configuration.
 func (p *ConfstackProvider) Configure(_ context.Context, _ provider.ConfigureRequest, _ *provider.ConfigureResponse) {
-	// No provider-level configuration required.
 }
 
 // DataSources returns the list of data sources exposed by this provider.
 func (p *ConfstackProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewConfigDataSource,
+		NewLayeredConfigDataSource,
 	}
 }
 

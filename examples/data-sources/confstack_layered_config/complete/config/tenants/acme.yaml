@@ -1,0 +1,8 @@
+tags:
+  tenant: acme
+
+eks:
+  min_nodes: 5
+
+database:
+  name: acme_production

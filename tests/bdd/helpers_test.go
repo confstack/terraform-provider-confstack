@@ -17,7 +17,6 @@ import (
 
 func newTestResolver() *usecase.Resolver {
 	return usecase.NewResolver(
-		filesystem.NewDiscoverer(),
 		filesystem.NewReader(),
 		yaml.NewParser(),
 		template.NewEngine(),
@@ -66,15 +65,14 @@ func setupFixture(name string) string {
 	return tmpDir
 }
 
-func resolveConfig(resolver *usecase.Resolver, configDir, env, tenant string) (map[string]interface{}, error) {
-	opts := []func(*domain.ResolveRequest){}
-	if tenant != "" {
-		opts = append(opts, domain.WithTenant(tenant))
+func resolveConfig(resolver *usecase.Resolver, layers []string, opts ...func(*domain.ResolveRequest)) (map[string]interface{}, error) {
+	allOpts := []func(*domain.ResolveRequest){
+		domain.WithVariables(map[string]string{}),
+		domain.WithSecrets(map[string]string{}),
 	}
-	opts = append(opts, domain.WithVariables(map[string]string{}))
-	opts = append(opts, domain.WithSecrets(map[string]string{}))
+	allOpts = append(allOpts, opts...)
 
-	req, err := domain.NewResolveRequest(configDir, env, opts...)
+	req, err := domain.NewResolveRequest(layers, allOpts...)
 	if err != nil {
 		return nil, err
 	}

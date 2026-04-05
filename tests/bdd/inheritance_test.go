@@ -2,6 +2,7 @@ package bdd_test
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/confstack/terraform-provider-confstack/internal/usecase"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,19 +11,20 @@ import (
 
 var _ = Describe("Template Inheritance Engine", func() {
 	var (
-		tmpDir      string
-		environment string
-		tenant      string
-		resolver    *usecase.Resolver
-		err         error
-		result      map[string]interface{}
+		tmpDir   string
+		layers   []string
+		resolver *usecase.Resolver
+		err      error
+		result   map[string]interface{}
 	)
 
 	BeforeEach(func() {
 		tmpDir = setupFixture("inheritance")
-		environment = "dev"
-		tenant = "acme"
 		resolver = newTestResolver()
+		layers = []string{
+			filepath.Join(tmpDir, "_global", "defaults.common.yaml"),
+			filepath.Join(tmpDir, "dev", "config.common.yaml"),
+		}
 	})
 
 	AfterEach(func() {
@@ -31,7 +33,7 @@ var _ = Describe("Template Inheritance Engine", func() {
 
 	Context("When resolving templates and inheritance (FR-06)", func() {
 		BeforeEach(func() {
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			result, err = resolveConfig(resolver, layers)
 		})
 
 		It("should resolve successfully without error", func() {
@@ -63,10 +65,10 @@ var _ = Describe("Template Inheritance Engine", func() {
 		It("should resolve multiple inheritance with exceptions", func() {
 			sqs := result["sqs_queues"].(map[string]interface{})
 			orders := sqs["orders"].(map[string]interface{})
-			
+
 			// From critical, overridden by entry
 			Expect(orders).To(HaveKeyWithValue("visibility_timeout", 120))
-			
+
 			// From critical
 			Expect(orders).To(HaveKeyWithValue("retention", 604800))
 			Expect(orders).To(HaveKeyWithValue("dlq", true))

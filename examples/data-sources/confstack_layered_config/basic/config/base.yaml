@@ -1,0 +1,8 @@
+tags:
+  managed_by: opentofu
+  team: platform
+
+eks:
+  node_size: t3.medium
+  min_nodes: 2
+  max_nodes: 10

@@ -1,0 +1,16 @@
+tags:
+  managed_by: opentofu
+  team: platform
+
+database:
+  host: db.example.internal
+  port: 5432
+  password: {{ secret "DB_PASSWORD" }}
+
+network:
+  vpc_id: {{ var "VPC_ID" }}
+
+eks:
+  node_size: t3.medium
+  min_nodes: 2
+  max_nodes: 10

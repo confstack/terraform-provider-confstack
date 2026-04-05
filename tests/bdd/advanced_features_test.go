@@ -2,6 +2,7 @@ package bdd_test
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/confstack/terraform-provider-confstack/internal/usecase"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,17 +11,13 @@ import (
 
 var _ = Describe("Advanced Resolution Logic", func() {
 	var (
-		tmpDir      string
-		environment string
-		tenant      string
-		resolver    *usecase.Resolver
-		err         error
-		result      map[string]interface{}
+		tmpDir   string
+		resolver *usecase.Resolver
+		err      error
+		result   map[string]interface{}
 	)
 
 	BeforeEach(func() {
-		environment = "dev"
-		tenant = ""
 		resolver = newTestResolver()
 	})
 
@@ -33,7 +30,10 @@ var _ = Describe("Advanced Resolution Logic", func() {
 	Context("When handling multiple YAML documents in a single file (FR-03)", func() {
 		BeforeEach(func() {
 			tmpDir = setupFixture("multiple_docs")
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			layers := []string{
+				filepath.Join(tmpDir, "_global", "defaults.common.yaml"),
+			}
+			result, err = resolveConfig(resolver, layers)
 		})
 
 		It("should successfully merge all documents sequentially", func() {
@@ -43,22 +43,13 @@ var _ = Describe("Advanced Resolution Logic", func() {
 		})
 	})
 
-	Context("When detecting case-insensitivity collisions in filenames (FR-01)", func() {
-		BeforeEach(func() {
-			tmpDir = setupFixture("case_collision")
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
-		})
-
-		It("should return a plan-time error to ensure deterministic behavior", func() {
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("case collision"))
-		})
-	})
-
 	Context("When resolving templates via bubble-up (FR-06)", func() {
 		BeforeEach(func() {
 			tmpDir = setupFixture("bubble_up")
-			result, err = resolveConfig(resolver, tmpDir, environment, tenant)
+			layers := []string{
+				filepath.Join(tmpDir, "_global", "defaults.common.yaml"),
+			}
+			result, err = resolveConfig(resolver, layers)
 		})
 
 		It("should find and resolve templates from parent maps", func() {
@@ -71,16 +62,17 @@ var _ = Describe("Advanced Resolution Logic", func() {
 		})
 	})
 
-	Context("When using templating context and Sprig functions (FR-02)", func() {
+	Context("When using Sprig functions in templates (FR-02)", func() {
 		BeforeEach(func() {
 			tmpDir = setupFixture("templating_context")
-			result, err = resolveConfig(resolver, tmpDir, "production", "")
+			layers := []string{
+				filepath.Join(tmpDir, "_global", "defaults.common.yaml"),
+			}
+			result, err = resolveConfig(resolver, layers)
 		})
 
-		It("should correctly resolve .Environment, .Tenant, and Sprig helpers", func() {
+		It("should correctly resolve Sprig helpers", func() {
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(HaveKeyWithValue("env_name", "PRODUCTION"))
-			Expect(result).To(HaveKeyWithValue("tenant_name", "no-tenant"))
 			Expect(result).To(HaveKeyWithValue("sprig_test", "HELLO WORLD"))
 		})
 	})

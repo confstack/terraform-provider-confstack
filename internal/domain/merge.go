@@ -74,7 +74,7 @@ func MergeAll(files []DiscoveredFile, data map[string][]map[string]any) (map[str
 		for _, doc := range docs {
 			merged, err := DeepMerge(result, doc, "", "", file.Path)
 			if err != nil {
-				return nil, fmt.Errorf("merging file %q: %w", file.RelPath, err)
+				return nil, fmt.Errorf("merging file %q: %w", file.Path, err)
 			}
 			result = merged
 		}

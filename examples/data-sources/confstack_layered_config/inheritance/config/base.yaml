@@ -1,0 +1,26 @@
+sqs_queues:
+  _templates:
+    standard:
+      retention: 86400
+      dlq: true
+      visibility_timeout: 30
+    critical:
+      retention: 604800
+      dlq: true
+      visibility_timeout: 30
+      dlq_max_retries: 5
+
+  # Single inheritance: notifications gets all fields from standard,
+  # then overrides retention to 3600.
+  notifications:
+    _inherit: standard
+    retention: 3600
+
+  # Multi-inheritance with exception: orders gets standard (minus dlq),
+  # then all of critical on top.
+  orders:
+    _inherit:
+      - template: standard
+        except:
+          - dlq
+      - template: critical

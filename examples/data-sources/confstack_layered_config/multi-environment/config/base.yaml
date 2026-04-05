@@ -1,0 +1,7 @@
+tags:
+  managed_by: opentofu
+  team: platform
+
+database:
+  instance_type: db.t3.micro
+  multi_az: false
