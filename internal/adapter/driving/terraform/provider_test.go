@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 )
 
@@ -52,10 +51,7 @@ func TestProviderDataSources(t *testing.T) {
 		t.Fatalf("expected 1 data source, got %d", len(dataSources))
 	}
 
-	ds, ok := dataSources[0]().(datasource.DataSource)
-	if !ok {
-		t.Fatalf("expected datasource.DataSource, got %T", dataSources[0]())
-	}
+	ds := dataSources[0]()
 	if _, ok := ds.(*LayeredConfigDataSource); !ok {
 		t.Fatalf("expected *LayeredConfigDataSource, got %T", ds)
 	}
