@@ -342,22 +342,28 @@ terraform {
 
 provider "confstack" {}
 
-# Mix a literal base layer with a glob that expands all override files.
-# overrides/*.yaml expands alphabetically: 01-network.yaml, 02-compute.yaml, ...
+# Demonstrates glob pattern support in layers.
+# Each layers entry may be a literal path or a glob (including ** for recursion).
+# Glob patterns expand to alphabetically sorted concrete paths at their position.
+# Later paths still win over earlier ones (last-wins merge).
 data "confstack_layered_config" "example" {
   layers = [
+    # Explicit base layer — lowest priority
     "${path.module}/config/base.yaml",
+    # Glob: all YAML files in overrides/, expanded alphabetically
     "${path.module}/config/overrides/*.yaml",
   ]
 }
 
+# The resolved config after merging base + all override files.
 output "config" {
   value = data.confstack_layered_config.example.config
 }
 
-# loaded_layers shows the concrete paths after glob expansion.
+# Inspect which concrete files were loaded (globs replaced by their matches).
 output "loaded_layers" {
-  value = data.confstack_layered_config.example.loaded_layers
+  description = "Concrete file paths that were loaded (globs expanded)"
+  value       = data.confstack_layered_config.example.loaded_layers
 }
 ```
 
@@ -375,12 +381,13 @@ network:
 eks:
   node_size: m5.xlarge
   min_nodes: 3
+  max_nodes: 50
 
 tags:
   environment: prod
 ```
 
-`loaded_layers` output after expansion: `["config/base.yaml", "config/overrides/01-network.yaml", "config/overrides/02-compute.yaml"]`
+`loaded_layers` after expansion: `["config/base.yaml", "config/overrides/01-network.yaml", "config/overrides/02-compute.yaml"]`
 
 Glob expansion rules:
 - Entries are processed left-to-right; literal paths keep their exact position.
@@ -425,7 +432,7 @@ resource "aws_db_instance" "main" {
 
 ### Required
 
-- `layers` (List of String) Ordered list of YAML file paths (or glob patterns, including `**` for recursive matching) to load and merge. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.
+- `layers` (List of String) Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.
 
 ### Optional
 

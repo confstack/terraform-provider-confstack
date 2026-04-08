@@ -95,7 +95,7 @@ resource "aws_eks_node_group" "main" {
 
 | Attribute | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `layers` | `list(string)` | yes | — | Ordered YAML file paths. Index 0 is lowest priority; last is highest (last wins). |
+| `layers` | `list(string)` | yes | — | Ordered YAML file paths or glob patterns (`*`, `**`, `?`, `[…]`). Index 0 is lowest priority; last is highest (last wins). Globs expand alphabetically at their position. |
 | `on_missing_layer` | `string` | no | `"error"` | How to handle a missing file. One of `"error"`, `"warn"`, `"skip"`. |
 | `variables` | `map(string)` | no | `{}` | Values injected via `{{ var "KEY" }}` in YAML templates. Checks this map first, then OS environment. |
 | `secrets` | `map(string)` | no | `{}` | Sensitive values injected via `{{ secret "KEY" }}`. Marked sensitive in Terraform. Checks this map first, then OS environment. |
@@ -242,6 +242,26 @@ resource "aws_db_instance" "main" {
 
 ---
 
+## Glob Patterns in `layers`
+
+Each entry in `layers` may be a literal path **or** a glob pattern. Glob patterns are expanded to alphabetically sorted concrete file paths at their position — preserving the last-wins merge order.
+
+```hcl
+data "confstack_layered_config" "app" {
+  layers = [
+    "${path.module}/config/base.yaml",
+    "${path.module}/config/overrides/*.yaml",   # expands: 01-net.yaml, 02-compute.yaml, …
+    "${path.module}/config/secrets/**/*.yaml",  # ** = recursive
+  ]
+}
+```
+
+- `loaded_layers` shows the concrete paths after expansion — useful for debugging.
+- A glob that matches zero files respects `on_missing_layer` (error/warn/skip).
+- Directories are never matched, only files.
+
+---
+
 ## Missing Layer Handling
 
 | `on_missing_layer` | Behavior when a layer file is absent |
@@ -290,3 +310,4 @@ Commits to the `main` branch will automatically trigger a new version tag and Gi
 | [`templating/`](examples/data-sources/confstack_layered_config/templating/) | `var()` / `secret()` template injection |
 | [`flat-output/`](examples/data-sources/confstack_layered_config/flat-output/) | `flat_config` for ergonomic resource attribute access |
 | [`complete/`](examples/data-sources/confstack_layered_config/complete/) | Full multi-layer stack with env, tenant, `compact()`, secrets |
+| [`glob-layers/`](examples/data-sources/confstack_layered_config/glob-layers/) | Glob patterns (`*.yaml`, `**/*.yaml`) in `layers` |

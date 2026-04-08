@@ -72,6 +72,28 @@ Use `compact()` and `on_missing_layer = "skip"` to build optional layer stacks. 
 
 {{ codefile "yaml" "examples/data-sources/confstack_layered_config/complete/config/tenants/acme.yaml" }}
 
+## Glob Patterns in `layers`
+
+Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries.
+
+{{ tffile "examples/data-sources/confstack_layered_config/glob-layers/main.tf" }}
+
+`config/overrides/01-network.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/glob-layers/config/overrides/01-network.yaml" }}
+
+`config/overrides/02-compute.yaml`:
+
+{{ codefile "yaml" "examples/data-sources/confstack_layered_config/glob-layers/config/overrides/02-compute.yaml" }}
+
+`loaded_layers` after expansion: `["config/base.yaml", "config/overrides/01-network.yaml", "config/overrides/02-compute.yaml"]`
+
+Glob expansion rules:
+- Entries are processed left-to-right; literal paths keep their exact position.
+- Each glob expands to alphabetically sorted matches **at that position**, preserving overall merge order.
+- A glob that matches zero files respects `on_missing_layer` (error/warn/skip).
+- Directories are never matched, only files.
+
 ## Merge Behavior
 
 Layers are processed in index order — **index 0 is the base (lowest priority), the last entry wins**.
