@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/confstack/terraform-provider-confstack/internal/domain"
 	portout "github.com/confstack/terraform-provider-confstack/internal/port/output"
@@ -16,6 +15,7 @@ type Resolver struct {
 	parser     portout.YAMLParser
 	tmplEngine portout.TemplateEngine
 	logger     portout.Logger
+	expander   portout.PathExpander
 }
 
 // NewResolver creates a new Resolver with all required output adapters injected.
@@ -24,12 +24,14 @@ func NewResolver(
 	parser portout.YAMLParser,
 	tmplEngine portout.TemplateEngine,
 	logger portout.Logger,
+	expander portout.PathExpander,
 ) *Resolver {
 	return &Resolver{
 		reader:     reader,
 		parser:     parser,
 		tmplEngine: tmplEngine,
 		logger:     logger,
+		expander:   expander,
 	}
 }
 
@@ -42,15 +44,48 @@ func (r *Resolver) Resolve(ctx context.Context, req domain.ResolveRequest) (*dom
 	// Use a single nonce per Resolve call to prevent cross-run sentinel collisions.
 	nonce := uuid.New().String()
 
+	// Step 0: Expand glob patterns in req.Layers to concrete file paths.
+	var expandedLayers []string
+	for _, entry := range req.Layers {
+		if !domain.IsGlobPattern(entry) {
+			expandedLayers = append(expandedLayers, entry)
+			continue
+		}
+		matches, err := r.expander.Expand(ctx, entry)
+		if err != nil {
+			return nil, fmt.Errorf("expanding glob %q: %w", entry, err)
+		}
+		if len(matches) == 0 {
+			switch req.OnMissingLayer {
+			case "error":
+				return nil, &domain.NoGlobMatchError{Pattern: entry}
+			case "warn":
+				r.logger.Debug(ctx, "glob matched no files, skipping (on_missing_layer=warn)",
+					map[string]any{"pattern": entry})
+			case "skip":
+				r.logger.Debug(ctx, "glob matched no files, skipping (on_missing_layer=skip)",
+					map[string]any{"pattern": entry})
+			default:
+				return nil, fmt.Errorf("unexpected on_missing_layer value %q", req.OnMissingLayer)
+			}
+			continue
+		}
+		expandedLayers = append(expandedLayers, matches...)
+	}
+
 	// Step 1: Load and process each layer in order (index 0 = lowest priority).
 	var files []domain.DiscoveredFile
 	fileData := make(map[string][]map[string]any)
 	allSentinels := make(map[string]string)
 	var loadedLayers []string
 
-	for i, layerPath := range req.Layers {
-		// Check existence
-		if _, err := os.Stat(layerPath); os.IsNotExist(err) {
+	for i, layerPath := range expandedLayers {
+		// Check existence via expander (single-file "glob" returns [] if missing).
+		matches, err := r.expander.Expand(ctx, layerPath)
+		if err != nil {
+			return nil, fmt.Errorf("checking layer %q: %w", layerPath, err)
+		}
+		if len(matches) == 0 {
 			switch req.OnMissingLayer {
 			case "error":
 				return nil, &domain.LayerNotFoundError{LayerPath: layerPath}

@@ -327,6 +327,67 @@ database:
   name: acme_production
 ```
 
+## Glob Patterns in `layers`
+
+Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries.
+
+```terraform
+terraform {
+  required_providers {
+    confstack = {
+      source = "confstack/confstack"
+    }
+  }
+}
+
+provider "confstack" {}
+
+# Mix a literal base layer with a glob that expands all override files.
+# overrides/*.yaml expands alphabetically: 01-network.yaml, 02-compute.yaml, ...
+data "confstack_layered_config" "example" {
+  layers = [
+    "${path.module}/config/base.yaml",
+    "${path.module}/config/overrides/*.yaml",
+  ]
+}
+
+output "config" {
+  value = data.confstack_layered_config.example.config
+}
+
+# loaded_layers shows the concrete paths after glob expansion.
+output "loaded_layers" {
+  value = data.confstack_layered_config.example.loaded_layers
+}
+```
+
+`config/overrides/01-network.yaml`:
+
+```yaml
+network:
+  cidr: "10.1.0.0/16"
+  nat_gateway: true
+```
+
+`config/overrides/02-compute.yaml`:
+
+```yaml
+eks:
+  node_size: m5.xlarge
+  min_nodes: 3
+
+tags:
+  environment: prod
+```
+
+`loaded_layers` output after expansion: `["config/base.yaml", "config/overrides/01-network.yaml", "config/overrides/02-compute.yaml"]`
+
+Glob expansion rules:
+- Entries are processed left-to-right; literal paths keep their exact position.
+- Each glob expands to alphabetically sorted matches **at that position**, preserving overall merge order.
+- A glob that matches zero files respects `on_missing_layer` (error/warn/skip).
+- Directories are never matched, only files.
+
 ## Merge Behavior
 
 Layers are processed in index order — **index 0 is the base (lowest priority), the last entry wins**.
@@ -364,7 +425,7 @@ resource "aws_db_instance" "main" {
 
 ### Required
 
-- `layers` (List of String) Ordered list of YAML file paths to load and merge. Index 0 is lowest priority; last entry is highest.
+- `layers` (List of String) Ordered list of YAML file paths (or glob patterns, including `**` for recursive matching) to load and merge. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.
 
 ### Optional
 

@@ -1,0 +1,7 @@
+eks:
+  node_size: m5.xlarge
+  min_nodes: 3
+  max_nodes: 50
+
+tags:
+  environment: prod

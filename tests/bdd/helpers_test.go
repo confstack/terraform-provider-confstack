@@ -21,6 +21,7 @@ func newTestResolver() *usecase.Resolver {
 		yaml.NewParser(),
 		template.NewEngine(),
 		logging.NewNopLogger(),
+		filesystem.NewExpander(),
 	)
 }
 

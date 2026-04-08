@@ -92,3 +92,14 @@ func WithInheritKey(k string) func(*ResolveRequest) {
 func WithFlatSeparator(s string) func(*ResolveRequest) {
 	return func(r *ResolveRequest) { r.FlatSeparator = s }
 }
+
+// IsGlobPattern reports whether s contains any glob metacharacters.
+func IsGlobPattern(s string) bool {
+	for _, c := range s {
+		switch c {
+		case '*', '?', '[':
+			return true
+		}
+	}
+	return false
+}

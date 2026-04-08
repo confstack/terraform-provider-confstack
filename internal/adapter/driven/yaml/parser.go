@@ -56,40 +56,24 @@ func (p *Parser) ParseMultiDoc(ctx context.Context, data []byte, filePath string
 	return docs, nil
 }
 
-// toStringKeyedMap converts a parsed YAML value to map[string]any recursively,
-// ensuring all map keys are strings.
+// toStringKeyedMap converts a parsed YAML value (always map[string]any with yaml.v3) to map[string]any recursively.
 func toStringKeyedMap(v any, filePath string) (map[string]any, error) {
-	switch val := v.(type) {
-	case map[string]any:
-		result := make(map[string]any, len(val))
-		for k, mv := range val {
-			converted, err := convertValue(mv, filePath)
-			if err != nil {
-				return nil, err
-			}
-			result[k] = converted
-		}
-		return result, nil
-	case map[any]any:
-		result := make(map[string]any, len(val))
-		for k, mv := range val {
-			ks, ok := k.(string)
-			if !ok {
-				return nil, &domain.ParseError{FilePath: filePath, Detail: "non-string map key"}
-			}
-			converted, err := convertValue(mv, filePath)
-			if err != nil {
-				return nil, err
-			}
-			result[ks] = converted
-		}
-		return result, nil
-	default:
+	val, ok := v.(map[string]any)
+	if !ok {
 		return nil, &domain.ParseError{FilePath: filePath, Detail: "top-level document is not a map"}
 	}
+	result := make(map[string]any, len(val))
+	for k, mv := range val {
+		converted, err := convertValue(mv, filePath)
+		if err != nil {
+			return nil, err
+		}
+		result[k] = converted
+	}
+	return result, nil
 }
 
-// convertValue recursively normalizes a YAML-decoded value, converting map[any]any to map[string]any.
+// convertValue recursively normalizes a YAML-decoded value.
 func convertValue(v any, filePath string) (any, error) {
 	switch val := v.(type) {
 	case map[string]any:
@@ -100,20 +84,6 @@ func convertValue(v any, filePath string) (any, error) {
 				return nil, err
 			}
 			result[k] = converted
-		}
-		return result, nil
-	case map[any]any:
-		result := make(map[string]any, len(val))
-		for k, mv := range val {
-			ks, ok := k.(string)
-			if !ok {
-				return nil, &domain.ParseError{FilePath: filePath, Detail: "non-string map key"}
-			}
-			converted, err := convertValue(mv, filePath)
-			if err != nil {
-				return nil, err
-			}
-			result[ks] = converted
 		}
 		return result, nil
 	case []any:

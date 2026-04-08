@@ -42,7 +42,7 @@ func (d *LayeredConfigDataSource) Schema(_ context.Context, _ datasource.SchemaR
 			"layers": schema.ListAttribute{
 				Required:    true,
 				ElementType: types.StringType,
-				Description: "Ordered list of YAML file paths to load and merge. Index 0 is lowest priority; last entry is highest.",
+				Description: "Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.",
 			},
 			"on_missing_layer": schema.StringAttribute{
 				Optional:    true,
@@ -112,6 +112,7 @@ func (d *LayeredConfigDataSource) Configure(_ context.Context, _ datasource.Conf
 		yamlAdapter.NewParser(),
 		tmplAdapter.NewEngine(),
 		logging.NewTfLogger(),
+		filesystem.NewExpander(),
 	)
 }
 
