@@ -88,4 +88,23 @@ var _ = Describe("Glob Pattern Layer Expansion", func() {
 			Expect(result).To(HaveKeyWithValue("env", "base"))
 		})
 	})
+
+	Context("When a glob pattern matches a file whose name contains glob metacharacters", func() {
+		It("should treat the expanded match as a literal loaded layer", func() {
+			bracketPath := filepath.Join(tmpDir, "overrides", "config[prod].yaml")
+			err = os.WriteFile(bracketPath, []byte("env: bracketed\nbracket_key: bracket_val\n"), 0o644)
+			Expect(err).NotTo(HaveOccurred())
+
+			basePath := filepath.Join(tmpDir, "base.yaml")
+			globPattern := filepath.Join(tmpDir, "overrides", "*.yaml")
+			req, reqErr := domain.NewResolveRequest([]string{basePath, globPattern})
+			Expect(reqErr).NotTo(HaveOccurred())
+
+			resp, resolveErr := resolver.Resolve(nil, req) //nolint:staticcheck
+			Expect(resolveErr).NotTo(HaveOccurred())
+			Expect(resp.Output).To(HaveKeyWithValue("env", "bracketed"))
+			Expect(resp.Output).To(HaveKeyWithValue("bracket_key", "bracket_val"))
+			Expect(resp.LoadedLayers).To(ContainElement(bracketPath))
+		})
+	})
 })
