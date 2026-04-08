@@ -551,6 +551,29 @@ func TestResolver_LiteralPrefix_LoadsBracketedFilename(t *testing.T) {
 	}
 }
 
+func TestResolver_GlobPattern_LoadsBracketedMatchAsLiteralPath(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "config[prod].yaml", "env: prod\n")
+
+	r := newResolver()
+	pattern := filepath.Join(dir, "*.yaml")
+	req, err := domain.NewResolveRequest([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output["env"] != "prod" {
+		t.Errorf("expected env=prod, got %v", result.Output["env"])
+	}
+	if len(result.LoadedLayers) != 1 || result.LoadedLayers[0] != path {
+		t.Errorf("expected loaded layer %q, got %v", path, result.LoadedLayers)
+	}
+}
+
 func TestResolver_LiteralPrefix_MissingFile_RespectsOnMissingLayer(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config[prod].yaml")

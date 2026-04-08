@@ -78,7 +78,7 @@ func (r *Resolver) Resolve(ctx context.Context, req domain.ResolveRequest) (*dom
 			continue
 		}
 		for _, match := range matches {
-			expandedLayers = append(expandedLayers, resolvedLayer{path: match})
+			expandedLayers = append(expandedLayers, resolvedLayer{path: match, literal: true})
 		}
 	}
 
