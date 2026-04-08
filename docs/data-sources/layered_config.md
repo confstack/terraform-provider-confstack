@@ -327,6 +327,75 @@ database:
   name: acme_production
 ```
 
+## Glob Patterns in `layers`
+
+Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries. If a filename contains glob metacharacters such as `[` or `]`, prefix it with `literal:` to force exact path matching.
+
+```terraform
+terraform {
+  required_providers {
+    confstack = {
+      source = "confstack/confstack"
+    }
+  }
+}
+
+provider "confstack" {}
+
+# Demonstrates glob pattern support in layers.
+# Each layers entry may be a literal path or a glob (including ** for recursion).
+# Glob patterns expand to alphabetically sorted concrete paths at their position.
+# Later paths still win over earlier ones (last-wins merge).
+data "confstack_layered_config" "example" {
+  layers = [
+    # Explicit base layer — lowest priority
+    "${path.module}/config/base.yaml",
+    # Glob: all YAML files in overrides/, expanded alphabetically
+    "${path.module}/config/overrides/*.yaml",
+  ]
+}
+
+# The resolved config after merging base + all override files.
+output "config" {
+  value = data.confstack_layered_config.example.config
+}
+
+# Inspect which concrete files were loaded (globs replaced by their matches).
+output "loaded_layers" {
+  description = "Concrete file paths that were loaded (globs expanded)"
+  value       = data.confstack_layered_config.example.loaded_layers
+}
+```
+
+`config/overrides/01-network.yaml`:
+
+```yaml
+network:
+  cidr: "10.1.0.0/16"
+  nat_gateway: true
+```
+
+`config/overrides/02-compute.yaml`:
+
+```yaml
+eks:
+  node_size: m5.xlarge
+  min_nodes: 3
+  max_nodes: 50
+
+tags:
+  environment: prod
+```
+
+`loaded_layers` after expansion: `["config/base.yaml", "config/overrides/01-network.yaml", "config/overrides/02-compute.yaml"]`
+
+Glob expansion rules:
+- Entries are processed left-to-right; literal paths keep their exact position.
+- Each glob expands to alphabetically sorted matches **at that position**, preserving overall merge order.
+- A glob that matches zero files respects `on_missing_layer` (error/warn/skip).
+- Directories are never matched, only files.
+- Plain bracket syntax like `config[pro].yaml` is treated as a glob character class. Use `literal:...` for exact filenames like `config[prod].yaml`.
+
 ## Merge Behavior
 
 Layers are processed in index order — **index 0 is the base (lowest priority), the last entry wins**.
@@ -364,7 +433,7 @@ resource "aws_db_instance" "main" {
 
 ### Required
 
-- `layers` (List of String) Ordered list of YAML file paths to load and merge. Index 0 is lowest priority; last entry is highest.
+- `layers` (List of String) Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Prefix an entry with literal: to force exact path matching for filenames containing glob metacharacters. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.
 
 ### Optional
 

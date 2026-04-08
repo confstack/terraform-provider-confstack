@@ -95,6 +95,15 @@ func (e *LayerNotFoundError) Error() string {
 	return fmt.Sprintf("layer file %q does not exist", e.LayerPath)
 }
 
+// NoGlobMatchError is returned when a glob pattern matches zero files and on_missing_layer = "error".
+type NoGlobMatchError struct {
+	Pattern string
+}
+
+func (e *NoGlobMatchError) Error() string {
+	return fmt.Sprintf("glob pattern %q matched no files", e.Pattern)
+}
+
 // TemplateRenderError is returned when template processing fails.
 type TemplateRenderError struct {
 	FilePath string

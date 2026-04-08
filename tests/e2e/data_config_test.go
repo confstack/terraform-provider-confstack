@@ -61,6 +61,29 @@ func TestAccLayeredConfigDataSource_templating(t *testing.T) {
 	})
 }
 
+func TestAccLayeredConfigDataSource_glob_layers(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: loadFixtureConfig(t, "glob_layers"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Last glob match wins: 02-compute.yaml
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.env", "compute"),
+					// Keys from base.yaml
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.base_key", "base_val"),
+					// Keys from first glob match
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.network_key", "network_val"),
+					// Keys from second glob match
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "config.compute_key", "compute_val"),
+					// loaded_layers should contain 3 concrete paths
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "loaded_layers.#", "3"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccLayeredConfigDataSource_errors(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

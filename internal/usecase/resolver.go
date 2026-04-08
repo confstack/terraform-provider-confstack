@@ -10,12 +10,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type resolvedLayer struct {
+	path    string
+	literal bool
+}
+
 // Resolver implements port/input.ConfigResolver. It orchestrates the full resolution pipeline.
 type Resolver struct {
 	reader     portout.FileReader
 	parser     portout.YAMLParser
 	tmplEngine portout.TemplateEngine
 	logger     portout.Logger
+	expander   portout.PathExpander
 }
 
 // NewResolver creates a new Resolver with all required output adapters injected.
@@ -24,12 +30,14 @@ func NewResolver(
 	parser portout.YAMLParser,
 	tmplEngine portout.TemplateEngine,
 	logger portout.Logger,
+	expander portout.PathExpander,
 ) *Resolver {
 	return &Resolver{
 		reader:     reader,
 		parser:     parser,
 		tmplEngine: tmplEngine,
 		logger:     logger,
+		expander:   expander,
 	}
 }
 
@@ -42,15 +50,51 @@ func (r *Resolver) Resolve(ctx context.Context, req domain.ResolveRequest) (*dom
 	// Use a single nonce per Resolve call to prevent cross-run sentinel collisions.
 	nonce := uuid.New().String()
 
+	// Step 0: Expand glob patterns in req.Layers to concrete file paths.
+	var expandedLayers []resolvedLayer
+	for _, entry := range req.Layers {
+		path, literal := domain.ParseLayerEntry(entry)
+		if literal || !domain.IsGlobPattern(path) {
+			expandedLayers = append(expandedLayers, resolvedLayer{path: path, literal: true})
+			continue
+		}
+		matches, err := r.expander.Expand(ctx, path)
+		if err != nil {
+			return nil, fmt.Errorf("expanding glob %q: %w", path, err)
+		}
+		if len(matches) == 0 {
+			switch req.OnMissingLayer {
+			case "error":
+				return nil, &domain.NoGlobMatchError{Pattern: path}
+			case "warn":
+				r.logger.Debug(ctx, "glob matched no files, skipping (on_missing_layer=warn)",
+					map[string]any{"pattern": path})
+			case "skip":
+				r.logger.Debug(ctx, "glob matched no files, skipping (on_missing_layer=skip)",
+					map[string]any{"pattern": path})
+			default:
+				return nil, fmt.Errorf("unexpected on_missing_layer value %q", req.OnMissingLayer)
+			}
+			continue
+		}
+		for _, match := range matches {
+			expandedLayers = append(expandedLayers, resolvedLayer{path: match, literal: true})
+		}
+	}
+
 	// Step 1: Load and process each layer in order (index 0 = lowest priority).
 	var files []domain.DiscoveredFile
 	fileData := make(map[string][]map[string]any)
 	allSentinels := make(map[string]string)
 	var loadedLayers []string
 
-	for i, layerPath := range req.Layers {
-		// Check existence
-		if _, err := os.Stat(layerPath); os.IsNotExist(err) {
+	for i, layer := range expandedLayers {
+		layerPath := layer.path
+		exists, err := layerExists(ctx, r.expander, layer)
+		if err != nil {
+			return nil, fmt.Errorf("checking layer %q: %w", layerPath, err)
+		}
+		if !exists {
 			switch req.OnMissingLayer {
 			case "error":
 				return nil, &domain.LayerNotFoundError{LayerPath: layerPath}
@@ -135,4 +179,23 @@ func (r *Resolver) Resolve(ctx context.Context, req domain.ResolveRequest) (*dom
 		LoadedLayers:    loadedLayers,
 		SecretPaths:     secretPaths,
 	}, nil
+}
+
+func layerExists(ctx context.Context, expander portout.PathExpander, layer resolvedLayer) (bool, error) {
+	if layer.literal {
+		_, err := os.Stat(layer.path)
+		if err == nil {
+			return true, nil
+		}
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	matches, err := expander.Expand(ctx, layer.path)
+	if err != nil {
+		return false, err
+	}
+	return len(matches) > 0, nil
 }

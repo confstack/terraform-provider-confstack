@@ -3,7 +3,10 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
+
+const LiteralLayerPrefix = "literal:"
 
 // ResolveRequest contains all inputs required to resolve a confstack configuration.
 type ResolveRequest struct {
@@ -54,13 +57,13 @@ func NewResolveRequest(layers []string, opts ...func(*ResolveRequest)) (ResolveR
 		return ResolveRequest{}, errors.New("layers must not be empty")
 	}
 	req := ResolveRequest{
-		Layers:        layers,
-		OnMissingLayer:  "error",
-		TemplatesKey:  "_templates",
-		InheritKey:    "_inherit",
-		FlatSeparator: ".",
-		Variables:     map[string]string{},
-		Secrets:       map[string]string{},
+		Layers:         layers,
+		OnMissingLayer: "error",
+		TemplatesKey:   "_templates",
+		InheritKey:     "_inherit",
+		FlatSeparator:  ".",
+		Variables:      map[string]string{},
+		Secrets:        map[string]string{},
 	}
 	for _, opt := range opts {
 		opt(&req)
@@ -91,4 +94,27 @@ func WithInheritKey(k string) func(*ResolveRequest) {
 }
 func WithFlatSeparator(s string) func(*ResolveRequest) {
 	return func(r *ResolveRequest) { r.FlatSeparator = s }
+}
+
+// ParseLayerEntry splits a layer entry into its path and whether it was explicitly marked literal.
+func ParseLayerEntry(s string) (path string, literal bool) {
+	if strings.HasPrefix(s, LiteralLayerPrefix) {
+		return strings.TrimPrefix(s, LiteralLayerPrefix), true
+	}
+	return s, false
+}
+
+// IsGlobPattern reports whether s contains any glob metacharacters.
+func IsGlobPattern(s string) bool {
+	s, literal := ParseLayerEntry(s)
+	if literal {
+		return false
+	}
+	for _, c := range s {
+		switch c {
+		case '*', '?', '[':
+			return true
+		}
+	}
+	return false
 }
