@@ -88,6 +88,8 @@ func TestIsGlobPattern(t *testing.T) {
 		{"*.yaml", true},
 		{"**/*.yaml", true},
 		{"file[0-9].yaml", true},
+		{"config[prod].yaml", true},
+		{"literal:config[prod].yaml", false},
 		{"file?.yaml", true},
 		{"", false},
 	}
@@ -95,6 +97,25 @@ func TestIsGlobPattern(t *testing.T) {
 		got := domain.IsGlobPattern(tt.input)
 		if got != tt.want {
 			t.Errorf("IsGlobPattern(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseLayerEntry(t *testing.T) {
+	tests := []struct {
+		input       string
+		wantPath    string
+		wantLiteral bool
+	}{
+		{"config.yaml", "config.yaml", false},
+		{"literal:config[prod].yaml", "config[prod].yaml", true},
+		{"literal:C:\\configs\\app[prod].yaml", "C:\\configs\\app[prod].yaml", true},
+	}
+
+	for _, tt := range tests {
+		gotPath, gotLiteral := domain.ParseLayerEntry(tt.input)
+		if gotPath != tt.wantPath || gotLiteral != tt.wantLiteral {
+			t.Errorf("ParseLayerEntry(%q) = (%q, %v), want (%q, %v)", tt.input, gotPath, gotLiteral, tt.wantPath, tt.wantLiteral)
 		}
 	}
 }

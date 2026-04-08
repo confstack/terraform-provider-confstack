@@ -74,7 +74,7 @@ Use `compact()` and `on_missing_layer = "skip"` to build optional layer stacks. 
 
 ## Glob Patterns in `layers`
 
-Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries.
+Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries. If a filename contains glob metacharacters such as `[` or `]`, prefix it with `literal:` to force exact path matching.
 
 {{ tffile "examples/data-sources/confstack_layered_config/glob-layers/main.tf" }}
 
@@ -93,6 +93,7 @@ Glob expansion rules:
 - Each glob expands to alphabetically sorted matches **at that position**, preserving overall merge order.
 - A glob that matches zero files respects `on_missing_layer` (error/warn/skip).
 - Directories are never matched, only files.
+- Plain bracket syntax like `config[pro].yaml` is treated as a glob character class. Use `literal:...` for exact filenames like `config[prod].yaml`.
 
 ## Merge Behavior
 

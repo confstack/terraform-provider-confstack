@@ -42,7 +42,7 @@ func (d *LayeredConfigDataSource) Schema(_ context.Context, _ datasource.SchemaR
 			"layers": schema.ListAttribute{
 				Required:    true,
 				ElementType: types.StringType,
-				Description: "Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.",
+				Description: "Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Prefix an entry with literal: to force exact path matching for filenames containing glob metacharacters. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.",
 			},
 			"on_missing_layer": schema.StringAttribute{
 				Optional:    true,

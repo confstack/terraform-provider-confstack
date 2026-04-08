@@ -86,6 +86,23 @@ func convertValue(v any, filePath string) (any, error) {
 			result[k] = converted
 		}
 		return result, nil
+	case map[any]any:
+		result := make(map[string]any, len(val))
+		for k, mv := range val {
+			key, ok := k.(string)
+			if !ok {
+				return nil, &domain.ParseError{
+					FilePath: filePath,
+					Detail:   "nested map contains non-string key",
+				}
+			}
+			converted, err := convertValue(mv, filePath)
+			if err != nil {
+				return nil, err
+			}
+			result[key] = converted
+		}
+		return result, nil
 	case []any:
 		result := make([]any, len(val))
 		for i, item := range val {

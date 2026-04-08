@@ -15,6 +15,7 @@ dist/
 # Test artifacts
 *.test
 coverage.out
+coverage.raw.out
 
 # IDE
 .idea/

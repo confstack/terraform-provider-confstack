@@ -13,7 +13,8 @@ bdd:
 	go test ./tests/bdd/... -v
 
 cover:
-	go test ./internal/... -coverprofile=coverage.out -covermode=atomic
+	go test ./internal/... -coverprofile=coverage.raw.out -covermode=atomic
+	grep -vE "internal/adapter/driven/logging/" coverage.raw.out > coverage.out
 	go tool cover -html=coverage.out
 
 lint:

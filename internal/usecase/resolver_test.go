@@ -528,3 +528,44 @@ func TestResolver_GlobPattern_NoMatch_Skip(t *testing.T) {
 		t.Errorf("expected only 1 loaded layer (glob skipped), got %d", len(result.LoadedLayers))
 	}
 }
+
+func TestResolver_LiteralPrefix_LoadsBracketedFilename(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "config[prod].yaml", "env: prod\n")
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest([]string{domain.LiteralLayerPrefix + path})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output["env"] != "prod" {
+		t.Errorf("expected env=prod, got %v", result.Output["env"])
+	}
+	if len(result.LoadedLayers) != 1 || result.LoadedLayers[0] != path {
+		t.Errorf("expected loaded layer %q, got %v", path, result.LoadedLayers)
+	}
+}
+
+func TestResolver_LiteralPrefix_MissingFile_RespectsOnMissingLayer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config[prod].yaml")
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest([]string{domain.LiteralLayerPrefix + path}, domain.WithOnMissingLayer("skip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error with on_missing_layer=skip: %v", err)
+	}
+	if len(result.LoadedLayers) != 0 {
+		t.Errorf("expected no loaded layers, got %v", result.LoadedLayers)
+	}
+}

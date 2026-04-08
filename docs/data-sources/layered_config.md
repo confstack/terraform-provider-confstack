@@ -329,7 +329,7 @@ database:
 
 ## Glob Patterns in `layers`
 
-Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries.
+Each entry in `layers` can be a literal file path **or** a glob pattern. Glob patterns (containing `*`, `?`, or `[`) are expanded to matching file paths sorted alphabetically at their position in the list. `**` matches across directory boundaries. If a filename contains glob metacharacters such as `[` or `]`, prefix it with `literal:` to force exact path matching.
 
 ```terraform
 terraform {
@@ -394,6 +394,7 @@ Glob expansion rules:
 - Each glob expands to alphabetically sorted matches **at that position**, preserving overall merge order.
 - A glob that matches zero files respects `on_missing_layer` (error/warn/skip).
 - Directories are never matched, only files.
+- Plain bracket syntax like `config[pro].yaml` is treated as a glob character class. Use `literal:...` for exact filenames like `config[prod].yaml`.
 
 ## Merge Behavior
 
@@ -432,7 +433,7 @@ resource "aws_db_instance" "main" {
 
 ### Required
 
-- `layers` (List of String) Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.
+- `layers` (List of String) Ordered list of YAML file paths (or glob patterns, including ** for recursive matching) to load and merge. Prefix an entry with literal: to force exact path matching for filenames containing glob metacharacters. Index 0 is lowest priority; last entry is highest. Glob patterns are expanded alphabetically at their position.
 
 ### Optional
 

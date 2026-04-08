@@ -180,3 +180,21 @@ service:
 		t.Errorf("expected name=my-service, got %v", svc["name"])
 	}
 }
+
+func TestParser_NestedMapWithNonStringKey_ReturnsParseError(t *testing.T) {
+	p := yamlAdapter.NewParser()
+	data := []byte(`
+ports:
+  80: http
+`)
+
+	_, err := p.ParseMultiDoc(context.Background(), data, "bad-nested-map.yaml")
+	if err == nil {
+		t.Fatal("expected parse error for nested map with non-string key")
+	}
+
+	var pe *domain.ParseError
+	if !errors.As(err, &pe) {
+		t.Fatalf("expected ParseError, got %T: %v", err, err)
+	}
+}
