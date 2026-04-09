@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,6 +21,7 @@ func newResolver() *usecase.Resolver {
 		yamlAdapter.NewParser(),
 		tmplAdapter.NewEngine(),
 		logging.NewNopLogger(),
+		filesystem.NewExpander(),
 	)
 }
 
@@ -371,5 +373,222 @@ app: myapp
 	}
 	if result.FlatOutput["app"] != "myapp" {
 		t.Errorf("expected app=myapp, got %v", result.FlatOutput["app"])
+	}
+}
+
+func TestResolver_GlobPattern_SingleMatch(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "base.yaml", "env: staging\n")
+
+	r := newResolver()
+	pattern := filepath.Join(dir, "*.yaml")
+	req, err := domain.NewResolveRequest([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output["env"] != "staging" {
+		t.Errorf("expected env=staging, got %v", result.Output["env"])
+	}
+	if len(result.LoadedLayers) != 1 {
+		t.Errorf("expected 1 loaded layer, got %d", len(result.LoadedLayers))
+	}
+}
+
+func TestResolver_GlobPattern_AlphabeticOrder(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "01-base.yaml", "priority: low\nbase: true\n")
+	writeTestFile(t, dir, "02-override.yaml", "priority: high\n")
+	writeTestFile(t, dir, "03-final.yaml", "priority: final\n")
+
+	r := newResolver()
+	pattern := filepath.Join(dir, "*.yaml")
+	req, err := domain.NewResolveRequest([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Last alphabetically wins: 03-final.yaml
+	if result.Output["priority"] != "final" {
+		t.Errorf("expected priority=final (last file wins), got %v", result.Output["priority"])
+	}
+	// base key from 01-base.yaml should be present
+	if result.Output["base"] != true {
+		t.Errorf("expected base=true from first file, got %v", result.Output["base"])
+	}
+	if len(result.LoadedLayers) != 3 {
+		t.Errorf("expected 3 loaded layers, got %d", len(result.LoadedLayers))
+	}
+}
+
+func TestResolver_GlobPattern_MixedLiteralAndGlob(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "base.yaml", "env: base\nbase_key: base_val\n")
+	overridesDir := filepath.Join(dir, "overrides")
+	writeTestFile(t, overridesDir, "01-net.yaml", "env: net\nnet_key: net_val\n")
+	writeTestFile(t, overridesDir, "02-compute.yaml", "env: compute\ncompute_key: compute_val\n")
+
+	r := newResolver()
+	basePath := filepath.Join(dir, "base.yaml")
+	globPattern := filepath.Join(overridesDir, "*.yaml")
+	req, err := domain.NewResolveRequest([]string{basePath, globPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Last glob match wins overall: 02-compute.yaml
+	if result.Output["env"] != "compute" {
+		t.Errorf("expected env=compute (last layer wins), got %v", result.Output["env"])
+	}
+	if result.Output["base_key"] != "base_val" {
+		t.Errorf("expected base_key=base_val, got %v", result.Output["base_key"])
+	}
+	if result.Output["net_key"] != "net_val" {
+		t.Errorf("expected net_key=net_val, got %v", result.Output["net_key"])
+	}
+	if result.Output["compute_key"] != "compute_val" {
+		t.Errorf("expected compute_key=compute_val, got %v", result.Output["compute_key"])
+	}
+	if len(result.LoadedLayers) != 3 {
+		t.Errorf("expected 3 loaded layers, got %d", len(result.LoadedLayers))
+	}
+}
+
+func TestResolver_GlobPattern_Doublestar(t *testing.T) {
+	dir := t.TempDir()
+	subA := filepath.Join(dir, "a")
+	subB := filepath.Join(dir, "b")
+	writeTestFile(t, subA, "config.yaml", "from: a\n")
+	writeTestFile(t, subB, "config.yaml", "from: b\n")
+
+	r := newResolver()
+	pattern := filepath.Join(dir, "**", "*.yaml")
+	req, err := domain.NewResolveRequest([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.LoadedLayers) != 2 {
+		t.Errorf("expected 2 loaded layers, got %d: %v", len(result.LoadedLayers), result.LoadedLayers)
+	}
+}
+
+func TestResolver_GlobPattern_NoMatch_Error(t *testing.T) {
+	dir := t.TempDir()
+	r := newResolver()
+	pattern := filepath.Join(dir, "*.yaml")
+	req, err := domain.NewResolveRequest([]string{pattern},
+		domain.WithOnMissingLayer("error"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Resolve(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for unmatched glob with on_missing_layer=error")
+	}
+	var globErr *domain.NoGlobMatchError
+	if !errors.As(err, &globErr) {
+		t.Errorf("expected NoGlobMatchError, got %T: %v", err, err)
+	}
+}
+
+func TestResolver_GlobPattern_NoMatch_Skip(t *testing.T) {
+	dir := t.TempDir()
+	litPath := writeTestFile(t, dir, "base.yaml", "env: present\n")
+
+	r := newResolver()
+	pattern := filepath.Join(dir, "nonexistent", "*.yaml")
+	req, err := domain.NewResolveRequest([]string{litPath, pattern},
+		domain.WithOnMissingLayer("skip"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error with on_missing_layer=skip: %v", err)
+	}
+	if result.Output["env"] != "present" {
+		t.Errorf("expected env=present from literal layer, got %v", result.Output["env"])
+	}
+	if len(result.LoadedLayers) != 1 {
+		t.Errorf("expected only 1 loaded layer (glob skipped), got %d", len(result.LoadedLayers))
+	}
+}
+
+func TestResolver_LiteralPrefix_LoadsBracketedFilename(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "config[prod].yaml", "env: prod\n")
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest([]string{domain.LiteralLayerPrefix + path})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output["env"] != "prod" {
+		t.Errorf("expected env=prod, got %v", result.Output["env"])
+	}
+	if len(result.LoadedLayers) != 1 || result.LoadedLayers[0] != path {
+		t.Errorf("expected loaded layer %q, got %v", path, result.LoadedLayers)
+	}
+}
+
+func TestResolver_GlobPattern_LoadsBracketedMatchAsLiteralPath(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "config[prod].yaml", "env: prod\n")
+
+	r := newResolver()
+	pattern := filepath.Join(dir, "*.yaml")
+	req, err := domain.NewResolveRequest([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output["env"] != "prod" {
+		t.Errorf("expected env=prod, got %v", result.Output["env"])
+	}
+	if len(result.LoadedLayers) != 1 || result.LoadedLayers[0] != path {
+		t.Errorf("expected loaded layer %q, got %v", path, result.LoadedLayers)
+	}
+}
+
+func TestResolver_LiteralPrefix_MissingFile_RespectsOnMissingLayer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config[prod].yaml")
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest([]string{domain.LiteralLayerPrefix + path}, domain.WithOnMissingLayer("skip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error with on_missing_layer=skip: %v", err)
+	}
+	if len(result.LoadedLayers) != 0 {
+		t.Errorf("expected no loaded layers, got %v", result.LoadedLayers)
 	}
 }

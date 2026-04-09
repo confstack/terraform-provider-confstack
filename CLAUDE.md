@@ -52,7 +52,7 @@ The domain (`internal/domain/`) has **zero external dependencies**. All I/O is b
 
 `usecase/resolver.go` runs these steps in order:
 1. **Load** — Read each layer file; respects `on_missing_layer: error|warn|skip`
-2. **Template** — Process each layer as Go template; `{{ var "KEY" }}` from variables/env, `{{ secret "KEY" }}` replaced with UUID sentinel (Sprig functions available)
+2. **Template** — Process each layer as Go template; `{{ var "KEY" }}` from variables/env (falls back to OS env), `{{ secret "KEY" }}` replaced with a SHA256 sentinel (`__CONFSTACK_SECRET_<hex>__`); a UUID nonce is generated per `Resolve()` call so sentinels differ across runs (prevents cross-run collisions); Sprig functions available
 3. **Parse** — Multi-document YAML (supports `---` separators)
 4. **Merge** — Recursive deep merge, last layer wins; maps merged recursively, lists/scalars replaced; `null` deletes a key; type mismatch → `MergeConflictError`
 5. **Inherit** — Resolve `_templates`/`_inherit` directives; templates stripped from final output
@@ -75,7 +75,7 @@ type ResolveRequest struct {
 type ResolveResult struct {
     Output          map[string]any   // secrets redacted as "(sensitive)"
     SensitiveOutput map[string]any   // real secret values
-    FlatOutput      map[string]any   // dot-delimited string keys
+    FlatOutput      map[string]any   // dot-delimited string keys; all values are strings via fmt.Sprintf("%v", v)
     LoadedLayers    []string
     SecretPaths     map[string]bool
 }
@@ -95,8 +95,23 @@ Single read-only data source: `confstack_layered_config`. No managed resources.
 - `tests/bdd/` — Ginkgo/Gomega behavioral specs with fixture YAML in `testdata/`
 - `tests/e2e/` — Terraform acceptance tests (require `TF_ACC=1`) with HCL configs in `testdata/`
 
+## Domain Errors
+
+All errors live in `internal/domain/errors.go`. Key types:
+
+| Error | When |
+|---|---|
+| `MergeConflictError` | Type mismatch at same key during deep merge (e.g. map vs scalar) |
+| `TemplateNotFoundError` | `_inherit` references a template name that doesn't exist |
+| `DuplicateTemplateError` | Same template name defined in multiple `_templates` blocks |
+| `TemplateWithInheritError` | A template definition itself contains `_inherit` (forbidden) |
+| `MissingVariableError` | `var()` or `secret()` key not in variables map and not in OS env |
+| `TemplateRenderError` | Go template parsing or execution failure |
+| `LayerNotFoundError` | Layer file missing and `on_missing_layer = "error"` |
+
 ## Conventions
 
 - Conventional Commits enforced on PRs (`feat:`, `fix:`, `BREAKING CHANGE:`)
-- Semver automated from commit history
+- Semver automated from commit history via `release-please`; docs in `docs/` are generated (`go generate ./...`) and must be checked in
+- Go 1.25.0+ required (pinned in `go.mod`)
 - Errors defined in `internal/domain/errors.go` — add new error types there, not inline

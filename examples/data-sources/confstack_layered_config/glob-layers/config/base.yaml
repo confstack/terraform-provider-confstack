@@ -1,0 +1,12 @@
+tags:
+  managed_by: opentofu
+  team: platform
+
+network:
+  cidr: "10.0.0.0/16"
+  dns: true
+
+eks:
+  node_size: t3.medium
+  min_nodes: 2
+  max_nodes: 10
