@@ -1,0 +1,3 @@
+env: network
+network_key: network_val
+shared: from_network
