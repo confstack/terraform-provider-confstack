@@ -26,8 +26,8 @@ func TestEngine_VarFromMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), `"vpc-12345"`) {
-		t.Errorf("expected JSON-encoded vpc-12345 in output, got %s", string(out))
+	if !strings.Contains(string(out), `vpc-12345`) || strings.Contains(string(out), `"vpc-12345"`) {
+		t.Errorf("expected unquoted vpc-12345 in output, got %s", string(out))
 	}
 }
 
@@ -48,8 +48,8 @@ func TestEngine_VarFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), `"env-value"`) {
-		t.Errorf("expected JSON-encoded env-value in output, got %s", string(out))
+	if !strings.Contains(string(out), `env-value`) || strings.Contains(string(out), `"env-value"`) {
+		t.Errorf("expected unquoted env-value in output, got %s", string(out))
 	}
 }
 
@@ -118,6 +118,42 @@ func TestEngine_SprigFunctions(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "HELLO") {
 		t.Errorf("expected HELLO from Sprig upper, got %s", string(out))
+	}
+}
+
+func TestEngine_VarInlineConcatenation(t *testing.T) {
+	e := tmplAdapter.NewEngine()
+	req := newReq()
+	req.Variables = map[string]string{"HOST": "myhost", "PORT": "8080"}
+
+	out, _, err := e.Process(context.Background(), []byte(`url: http://{{ var "HOST" }}:{{ var "PORT" }}/api`), "test.yaml", req, "nonce1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "http://myhost:8080/api") {
+		t.Errorf("expected http://myhost:8080/api in output, got %s", outStr)
+	}
+}
+
+func TestEngine_SecretInlineConcatenation(t *testing.T) {
+	e := tmplAdapter.NewEngine()
+	req := newReq()
+	req.Secrets = map[string]string{"PASS": "s3cr3t"}
+
+	out, sentinels, err := e.Process(context.Background(), []byte(`dsn: postgres://user:{{ secret "PASS" }}@host/db`), "test.yaml", req, "nonce1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, "postgres://user:") || !strings.Contains(outStr, "@host/db") {
+		t.Errorf("expected inline DSN with sentinel in output, got %s", outStr)
+	}
+	if !strings.Contains(outStr, "__CONFSTACK_SECRET_") {
+		t.Errorf("expected sentinel embedded in DSN, got %s", outStr)
+	}
+	if len(sentinels) != 1 {
+		t.Errorf("expected 1 sentinel in map, got %d", len(sentinels))
 	}
 }
 

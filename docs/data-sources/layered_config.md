@@ -134,6 +134,15 @@ integrations:
   api_key: {{ secret "API_KEY" }}
 ```
 
+Both functions can be used inline (concatenated with other text), not just as standalone values:
+
+```yaml
+database:
+  dsn: postgres://user:{{ secret "DB_PASSWORD" }}@{{ var "DB_HOST" }}/mydb
+```
+
+When a value contains an inline secret, its path appears in `secret_paths` and `config` renders the secret portion as `(sensitive)` (e.g. `postgres://user:(sensitive)@myhost/mydb`). That string is **not** Terraform-sensitive — use `sensitive_config` whenever the real value is needed so Terraform redacts it in plan output.
+
 -> Sprig's `env "KEY"` also reads OS environment variables but returns an empty string on missing keys (no error) and does not check `variables`. Prefer `var "KEY"` for consistent error handling.
 
 ## Inheritance (`_templates` / `_inherit`)

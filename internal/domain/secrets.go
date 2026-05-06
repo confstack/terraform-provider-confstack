@@ -60,22 +60,60 @@ func resolveValue(v any, sentinelMap map[string]string, secretPaths map[string]b
 }
 
 func resolveString(s string, sentinelMap map[string]string, secretPaths map[string]bool, path string, redact bool) any {
-	if !isSentinel(s) {
+	sentinels := findSentinels(s)
+	if len(sentinels) == 0 {
 		return s
 	}
+
 	if secretPaths != nil {
 		secretPaths[path] = true
 	}
+
+	// Exact sentinel: the whole string is a single sentinel — preserve non-string return type
+	if len(sentinels) == 1 && s == sentinels[0] {
+		if redact {
+			return "(sensitive)"
+		}
+		if real, ok := sentinelMap[s]; ok {
+			return real
+		}
+		// Sentinel not found in map (shouldn't happen): return as-is
+		return s
+	}
+
+	// Inline sentinel(s): replace each occurrence within the larger string
 	if redact {
-		return "(sensitive)"
+		result := s
+		for _, sentinel := range sentinels {
+			result = strings.ReplaceAll(result, sentinel, "(sensitive)")
+		}
+		return result
 	}
-	if real, ok := sentinelMap[s]; ok {
-		return real
+	result := s
+	for _, sentinel := range sentinels {
+		if real, ok := sentinelMap[sentinel]; ok {
+			result = strings.ReplaceAll(result, sentinel, real)
+		}
 	}
-	// Sentinel not found in map (shouldn't happen): return as-is
-	return s
+	return result
 }
 
-func isSentinel(s string) bool {
-	return strings.HasPrefix(s, sentinelPrefix) && strings.HasSuffix(s, sentinelSuffix)
+// findSentinels returns all sentinel substrings found in s.
+func findSentinels(s string) []string {
+	var sentinels []string
+	for i := 0; i < len(s); {
+		start := strings.Index(s[i:], sentinelPrefix)
+		if start == -1 {
+			break
+		}
+		start += i
+		end := strings.Index(s[start+len(sentinelPrefix):], sentinelSuffix)
+		if end == -1 {
+			break
+		}
+		end = start + len(sentinelPrefix) + end + len(sentinelSuffix)
+		sentinels = append(sentinels, s[start:end])
+		i = end
+	}
+	return sentinels
 }

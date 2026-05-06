@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"os"
 	"text/template"
@@ -28,13 +27,13 @@ func (e *Engine) Process(ctx context.Context, data []byte, filePath string, req 
 
 	funcMap := sprig.TxtFuncMap()
 
-	// var(key): looks up from variables map then env, outputs JSON-encoded string for YAML safety
+	// var(key): looks up from variables map then env, returns raw string value
 	funcMap["var"] = func(key string) (string, error) {
 		if v, ok := req.Variables[key]; ok {
-			return jsonEncode(v)
+			return v, nil
 		}
 		if v := os.Getenv(key); v != "" {
-			return jsonEncode(v)
+			return v, nil
 		}
 		return "", &domain.MissingVariableError{Key: key, FuncName: "var"}
 	}
@@ -74,12 +73,3 @@ func makeSentinel(nonce, key string) string {
 	return fmt.Sprintf("__CONFSTACK_SECRET_%x__", h)
 }
 
-// jsonEncode encodes a string as a JSON string for safe YAML injection.
-// The result is a double-quoted string that is valid in both JSON and YAML scalar contexts.
-func jsonEncode(v string) (string, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "", fmt.Errorf("encoding variable value: %w", err)
-	}
-	return string(b), nil
-}
