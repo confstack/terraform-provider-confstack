@@ -41,7 +41,7 @@ func TestLayeredConfigDataSourceSchema(t *testing.T) {
 	if resp.Schema.Description == "" {
 		t.Fatal("expected non-empty schema description")
 	}
-	for _, attrName := range []string{"layers", "config", "sensitive_config", "flat_config", "loaded_layers", "secret_paths"} {
+	for _, attrName := range []string{"layers", "config", "sensitive_config", "flat_config", "sensitive_flat_config", "loaded_layers", "secret_paths"} {
 		if _, ok := resp.Schema.Attributes[attrName]; !ok {
 			t.Fatalf("expected attribute %q in schema", attrName)
 		}
@@ -82,16 +82,17 @@ func TestLayeredConfigDataSourceRead_Success(t *testing.T) {
 	schemaResp := schemaResponse(t, ds)
 	req := datasource.ReadRequest{
 		Config: buildConfig(t, schemaResp.Schema, layeredConfigDataSourceModel{
-			Layers:          stringListValue(t, []string{domain.LiteralLayerPrefix + layerPath}),
-			OnMissingLayer:  types.StringNull(),
-			Variables:       types.MapNull(types.StringType),
-			Secrets:         types.MapNull(types.StringType),
-			FlatSeparator:   types.StringNull(),
-			Config:          types.DynamicNull(),
-			SensitiveConfig: types.DynamicNull(),
-			FlatConfig:      types.MapNull(types.StringType),
-			LoadedLayers:    types.ListNull(types.StringType),
-			SecretPaths:     types.ListNull(types.StringType),
+			Layers:              stringListValue(t, []string{domain.LiteralLayerPrefix + layerPath}),
+			OnMissingLayer:      types.StringNull(),
+			Variables:           types.MapNull(types.StringType),
+			Secrets:             types.MapNull(types.StringType),
+			FlatSeparator:       types.StringNull(),
+			Config:              types.DynamicNull(),
+			SensitiveConfig:     types.DynamicNull(),
+			FlatConfig:          types.MapNull(types.StringType),
+			SensitiveFlatConfig: types.MapNull(types.StringType),
+			LoadedLayers:        types.ListNull(types.StringType),
+			SecretPaths:         types.ListNull(types.StringType),
 		}),
 	}
 	resp := datasource.ReadResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
@@ -127,16 +128,17 @@ func TestLayeredConfigDataSourceRead_InvalidRequest(t *testing.T) {
 	schemaResp := schemaResponse(t, ds)
 	req := datasource.ReadRequest{
 		Config: buildConfig(t, schemaResp.Schema, layeredConfigDataSourceModel{
-			Layers:          stringListValue(t, []string{}),
-			OnMissingLayer:  types.StringNull(),
-			Variables:       types.MapNull(types.StringType),
-			Secrets:         types.MapNull(types.StringType),
-			FlatSeparator:   types.StringNull(),
-			Config:          types.DynamicNull(),
-			SensitiveConfig: types.DynamicNull(),
-			FlatConfig:      types.MapNull(types.StringType),
-			LoadedLayers:    types.ListNull(types.StringType),
-			SecretPaths:     types.ListNull(types.StringType),
+			Layers:              stringListValue(t, []string{}),
+			OnMissingLayer:      types.StringNull(),
+			Variables:           types.MapNull(types.StringType),
+			Secrets:             types.MapNull(types.StringType),
+			FlatSeparator:       types.StringNull(),
+			Config:              types.DynamicNull(),
+			SensitiveConfig:     types.DynamicNull(),
+			FlatConfig:          types.MapNull(types.StringType),
+			SensitiveFlatConfig: types.MapNull(types.StringType),
+			LoadedLayers:        types.ListNull(types.StringType),
+			SecretPaths:         types.ListNull(types.StringType),
 		}),
 	}
 	resp := datasource.ReadResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
@@ -155,16 +157,17 @@ func TestLayeredConfigDataSourceRead_ResolutionError(t *testing.T) {
 	schemaResp := schemaResponse(t, ds)
 	req := datasource.ReadRequest{
 		Config: buildConfig(t, schemaResp.Schema, layeredConfigDataSourceModel{
-			Layers:          stringListValue(t, []string{filepath.Join(t.TempDir(), "missing.yaml")}),
-			OnMissingLayer:  types.StringValue("error"),
-			Variables:       types.MapNull(types.StringType),
-			Secrets:         types.MapNull(types.StringType),
-			FlatSeparator:   types.StringNull(),
-			Config:          types.DynamicNull(),
-			SensitiveConfig: types.DynamicNull(),
-			FlatConfig:      types.MapNull(types.StringType),
-			LoadedLayers:    types.ListNull(types.StringType),
-			SecretPaths:     types.ListNull(types.StringType),
+			Layers:              stringListValue(t, []string{filepath.Join(t.TempDir(), "missing.yaml")}),
+			OnMissingLayer:      types.StringValue("error"),
+			Variables:           types.MapNull(types.StringType),
+			Secrets:             types.MapNull(types.StringType),
+			FlatSeparator:       types.StringNull(),
+			Config:              types.DynamicNull(),
+			SensitiveConfig:     types.DynamicNull(),
+			FlatConfig:          types.MapNull(types.StringType),
+			SensitiveFlatConfig: types.MapNull(types.StringType),
+			LoadedLayers:        types.ListNull(types.StringType),
+			SecretPaths:         types.ListNull(types.StringType),
 		}),
 	}
 	resp := datasource.ReadResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
@@ -202,16 +205,17 @@ func buildConfig(t *testing.T, schema datasourceschema.Schema, model layeredConf
 		t.Fatalf("expected object type, got %T", schema.Type())
 	}
 	values := map[string]attr.Value{
-		"layers":           model.Layers,
-		"on_missing_layer": model.OnMissingLayer,
-		"variables":        model.Variables,
-		"secrets":          model.Secrets,
-		"flat_separator":   model.FlatSeparator,
-		"config":           model.Config,
-		"sensitive_config": model.SensitiveConfig,
-		"flat_config":      model.FlatConfig,
-		"loaded_layers":    model.LoadedLayers,
-		"secret_paths":     model.SecretPaths,
+		"layers":                model.Layers,
+		"on_missing_layer":      model.OnMissingLayer,
+		"variables":             model.Variables,
+		"secrets":               model.Secrets,
+		"flat_separator":        model.FlatSeparator,
+		"config":                model.Config,
+		"sensitive_config":      model.SensitiveConfig,
+		"flat_config":           model.FlatConfig,
+		"sensitive_flat_config": model.SensitiveFlatConfig,
+		"loaded_layers":         model.LoadedLayers,
+		"secret_paths":          model.SecretPaths,
 	}
 	obj, diags := types.ObjectValue(objectType.AttrTypes, values)
 	if diags.HasError() {

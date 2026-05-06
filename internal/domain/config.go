@@ -36,6 +36,10 @@ type ResolveResult struct {
 	SensitiveOutput map[string]any
 	// FlatOutput is Output flattened to separator-delimited string keys.
 	FlatOutput map[string]any
+	// SensitiveFlatOutput is a flattened map containing only the keys whose values differ
+	// between FlatOutput (redacted) and the sensitive flat tree — i.e. keys that contain secrets,
+	// with their plaintext values.
+	SensitiveFlatOutput map[string]any
 	// LoadedLayers is the ordered list of layer paths that were successfully loaded.
 	LoadedLayers []string
 	// SecretPaths records which dot-delimited paths contain secret values.

@@ -169,15 +169,28 @@ func (r *Resolver) Resolve(ctx context.Context, req domain.ResolveRequest) (*dom
 		return nil, fmt.Errorf("secret resolution: %w", err)
 	}
 
-	// Step 6: Flatten redacted output to dot-delimited keys.
+	// Step 6: Flatten redacted output to separator-delimited keys.
 	flatOutput := domain.Flatten(redacted, req.FlatSeparator)
 
+	// Step 7: Build sensitive_flat_config — flatten the full (plaintext) tree and keep only
+	// the keys whose stringified value differs from the redacted flat output. Those keys are
+	// the ones that contain at least one secret.
+	fullFlat := domain.Flatten(full, req.FlatSeparator)
+	sensitiveFlatOutput := make(map[string]any)
+	for k, fullVal := range fullFlat {
+		redactedVal, ok := flatOutput[k]
+		if !ok || fmt.Sprintf("%v", fullVal) != fmt.Sprintf("%v", redactedVal) {
+			sensitiveFlatOutput[k] = fullVal
+		}
+	}
+
 	return &domain.ResolveResult{
-		Output:          redacted,
-		SensitiveOutput: full,
-		FlatOutput:      flatOutput,
-		LoadedLayers:    loadedLayers,
-		SecretPaths:     secretPaths,
+		Output:              redacted,
+		SensitiveOutput:     full,
+		FlatOutput:          flatOutput,
+		SensitiveFlatOutput: sensitiveFlatOutput,
+		LoadedLayers:        loadedLayers,
+		SecretPaths:         secretPaths,
 	}, nil
 }
 
