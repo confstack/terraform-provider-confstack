@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/confstack/terraform-provider-confstack/compare/v1.1.0...v1.1.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* **template:** support inline var/secret concatenation in YAML values ([#17](https://github.com/confstack/terraform-provider-confstack/issues/17)) ([46ae921](https://github.com/confstack/terraform-provider-confstack/commit/46ae92192792f443fbf90e0ea05c891be240165f))
+
 ## [1.1.0](https://github.com/confstack/terraform-provider-confstack/compare/v1.0.0...v1.1.0) (2026-04-09)
 
 
