@@ -114,6 +114,83 @@ func TestResolveSecrets_ListWithSentinel(t *testing.T) {
 	}
 }
 
+func TestResolveSecrets_InlineSentinel(t *testing.T) {
+	sentinel := "__CONFSTACK_SECRET_abc123__"
+	tree := map[string]any{
+		"dsn": "postgres://user:" + sentinel + "@host/db",
+	}
+	sentinelMap := map[string]string{sentinel: "s3cr3t"}
+
+	redacted, full, paths, err := domain.ResolveSecrets(tree, sentinelMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if redacted["dsn"] != "postgres://user:(sensitive)@host/db" {
+		t.Errorf("expected redacted DSN, got %v", redacted["dsn"])
+	}
+	if full["dsn"] != "postgres://user:s3cr3t@host/db" {
+		t.Errorf("expected full DSN, got %v", full["dsn"])
+	}
+	if !paths["dsn"] {
+		t.Error("expected dsn to be in secret paths")
+	}
+}
+
+func TestResolveSecrets_MultipleSentinelsInline(t *testing.T) {
+	s1 := "__CONFSTACK_SECRET_s1__"
+	s2 := "__CONFSTACK_SECRET_s2__"
+	tree := map[string]any{
+		"url": "http://" + s1 + ":" + s2 + "/path",
+	}
+	sentinelMap := map[string]string{s1: "myhost", s2: "8080"}
+
+	redacted, full, paths, err := domain.ResolveSecrets(tree, sentinelMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if redacted["url"] != "http://(sensitive):(sensitive)/path" {
+		t.Errorf("expected double-redacted URL, got %v", redacted["url"])
+	}
+	if full["url"] != "http://myhost:8080/path" {
+		t.Errorf("expected full URL, got %v", full["url"])
+	}
+	if !paths["url"] {
+		t.Error("expected url to be in secret paths")
+	}
+}
+
+func TestResolveSecrets_InlineSentinelInList(t *testing.T) {
+	sentinel := "__CONFSTACK_SECRET_abc__"
+	tree := map[string]any{
+		"items": []any{"plain", "prefix-" + sentinel + "-suffix"},
+	}
+	sentinelMap := map[string]string{sentinel: "secret-val"}
+
+	redacted, full, paths, err := domain.ResolveSecrets(tree, sentinelMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	redItems := redacted["items"].([]any)
+	if redItems[0] != "plain" {
+		t.Errorf("expected items[0]=plain, got %v", redItems[0])
+	}
+	if redItems[1] != "prefix-(sensitive)-suffix" {
+		t.Errorf("expected redacted list item, got %v", redItems[1])
+	}
+
+	fullItems := full["items"].([]any)
+	if fullItems[1] != "prefix-secret-val-suffix" {
+		t.Errorf("expected full list item, got %v", fullItems[1])
+	}
+
+	if !paths["items[1]"] {
+		t.Error("expected items[1] to be in secret paths")
+	}
+}
+
 func TestResolveSecrets_UnknownSentinelNotInMap(t *testing.T) {
 	// A sentinel that doesn't appear in sentinelMap (shouldn't happen but covers the fallback branch)
 	sentinel := "__CONFSTACK_SECRET_unknown__"

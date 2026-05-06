@@ -134,6 +134,13 @@ integrations:
   api_key: {{ secret "API_KEY" }}
 ```
 
+Both functions can be used inline (concatenated with other text), not just as standalone values:
+
+```yaml
+database:
+  dsn: postgres://user:{{ secret "DB_PASSWORD" }}@{{ var "DB_HOST" }}/mydb
+```
+
 -> Sprig's `env "KEY"` also reads OS environment variables but returns an empty string on missing keys (no error) and does not check `variables`. Prefer `var "KEY"` for consistent error handling.
 
 ## Inheritance (`_templates` / `_inherit`)
