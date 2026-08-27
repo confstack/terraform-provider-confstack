@@ -37,7 +37,7 @@ adapter/driving/terraform/   ← Terraform framework wiring (provider, data sour
     ↓ calls
 port/input/                  ← ConfigResolver interface (input port)
     ↓ implemented by
-usecase/resolver.go          ← 6-step resolution pipeline (orchestrator)
+usecase/resolver.go          ← resolution pipeline (orchestrator)
     ↓ calls
 domain/                      ← Pure Go business logic (merge, inherit, flatten, secrets, errors)
     ↓ via interfaces
@@ -51,19 +51,29 @@ The domain (`internal/domain/`) has **zero external dependencies**. All I/O is b
 ## Resolution Pipeline
 
 `usecase/resolver.go` runs these steps in order:
-1. **Load** — Read each layer file; respects `on_missing_layer: error|warn|skip`
-2. **Template** — Process each layer as Go template; `{{ var "KEY" }}` from variables/env (falls back to OS env), `{{ secret "KEY" }}` replaced with a SHA256 sentinel (`__CONFSTACK_SECRET_<hex>__`); a UUID nonce is generated per `Resolve()` call so sentinels differ across runs (prevents cross-run collisions); Sprig functions available
-3. **Parse** — Multi-document YAML (supports `---` separators)
+
+0. **Expand** — Expand glob patterns in `layers` to concrete file paths (`doublestar`, `**` supported), sorted alphabetically and spliced in at the pattern's position. An entry prefixed `literal:` skips expansion entirely, for filenames containing `*`, `?`, or `[`. A pattern matching nothing is governed by `on_missing_layer`; under `error` it raises `NoGlobMatchError`.
+
+Steps 1–3 run per layer, in one loop:
+
+1. **Load** — Read each layer file; a missing file respects `on_missing_layer: error|warn|skip` (`error` → `LayerNotFoundError`)
+2. **Template** — Process each layer as Go template; `{{ var "KEY" }}` from the variables map, falling back to OS env; `{{ secret "KEY" }}` replaced with a SHA256 sentinel (`__CONFSTACK_SECRET_<hex>__`); a UUID nonce is generated per `Resolve()` call so sentinels differ across runs (prevents cross-run collisions); Sprig functions available
+3. **Parse** — Multi-document YAML (supports `---` separators); every document must be a map at the top level
+
+Then, over the accumulated layers:
+
 4. **Merge** — Recursive deep merge, last layer wins; maps merged recursively, lists/scalars replaced; `null` deletes a key; type mismatch → `MergeConflictError`
-5. **Inherit** — Resolve `_templates`/`_inherit` directives; templates stripped from final output
-6. **Secrets** — Sentinels → `"(sensitive)"` in `config`, real values in `sensitive_config`; all outputs include `secret_paths`
+5. **Inherit** — Resolve `_templates`/`_inherit` directives via bubble-up scope lookup
+6. **Strip** — `domain.StripReservedKeys` removes `_templates`/`_inherit` at every depth
+7. **Secrets** — Sentinels → `"(sensitive)"` in `Output`, real values in `SensitiveOutput`; both carry `SecretPaths`
+8. **Flatten** — `domain.Flatten` collapses `Output` to separator-delimited keys
 
 ## Key Domain Types
 
 ```go
 // domain/config.go
 type ResolveRequest struct {
-    Layers         []string
+    Layers         []string          // glob patterns allowed; "literal:" prefix forces an exact path
     OnMissingLayer string            // "error" | "warn" | "skip"
     Variables      map[string]string // {{ var "KEY" }}
     Secrets        map[string]string // {{ secret "KEY" }}
@@ -75,7 +85,7 @@ type ResolveRequest struct {
 type ResolveResult struct {
     Output          map[string]any   // secrets redacted as "(sensitive)"
     SensitiveOutput map[string]any   // real secret values
-    FlatOutput      map[string]any   // dot-delimited string keys; all values are strings via fmt.Sprintf("%v", v)
+    FlatOutput      map[string]any   // separator-delimited keys; leaf values keep their native Go types
     LoadedLayers    []string
     SecretPaths     map[string]bool
 }
@@ -108,6 +118,31 @@ All errors live in `internal/domain/errors.go`. Key types:
 | `MissingVariableError` | `var()` or `secret()` key not in variables map and not in OS env |
 | `TemplateRenderError` | Go template parsing or execution failure |
 | `LayerNotFoundError` | Layer file missing and `on_missing_layer = "error"` |
+| `NoGlobMatchError` | Glob pattern matched no files and `on_missing_layer = "error"` |
+| `ParseError` | Invalid YAML, non-map top-level document, or a non-string key in a nested map |
+| `FileReadError` | `os.ReadFile` failed on a layer that exists |
+
+## Spec-Driven Workflow (OpenSpec)
+
+Behavior is specified in `openspec/specs/<capability>/spec.md` before it is built. Seven capabilities
+are documented: `layer-resolution`, `layer-templating`, `yaml-parsing`, `config-merge`,
+`template-inheritance`, `secret-redaction`, `terraform-data-source`.
+
+The loop is `/opsx:propose <idea>` → review the generated `proposal.md` / `design.md` / `tasks.md` →
+`/opsx:apply` → `/opsx:archive`. Archiving merges the change's delta specs back into
+`openspec/specs/`, so the specs stay current without a separate documentation pass.
+
+- A change proposes **deltas** (`## ADDED` / `## MODIFIED` / `## REMOVED Requirements`), never a
+  rewritten spec. A `MODIFIED` block must carry the full requirement including every scenario that
+  survives — `openspec validate` and `openspec archive` reject one that silently drops a scenario.
+- Scenarios are written as `GIVEN` / `WHEN` / `THEN` bullets. Requirements state observable behavior
+  with `SHALL`; implementation detail belongs in `design.md`.
+- `openspec/config.yaml` carries the project context and the per-artifact rules injected into every
+  proposal. Update it when conventions change.
+- Useful checks: `openspec validate --specs`, `openspec list --specs`, `openspec show <name>`.
+
+When behavior changes, update the affected spec in the same change — a spec that drifts from the code
+is worse than no spec.
 
 ## Conventions
 
