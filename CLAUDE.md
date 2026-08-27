@@ -150,3 +150,30 @@ is worse than no spec.
 - Semver automated from commit history via `release-please`; docs in `docs/` are generated (`go generate ./...`) and must be checked in
 - Go 1.25.0+ required (pinned in `go.mod`)
 - Errors defined in `internal/domain/errors.go` — add new error types there, not inline
+
+## Pull Requests
+
+**Write the body from `.github/PULL_REQUEST_TEMPLATE.md`.** Read it first and keep its five
+sections, in order and under their own headings: `Description`, `Discussion`,
+`Overview of changes`, `External requirements`, `Impact`. Do not invent a different structure —
+`gh pr create --body-file` bypasses the template silently, so it has to be applied by hand.
+
+Section conventions, as established by the merged PRs (#6, #17):
+
+- **Description** — what changed and why, in prose. The diff already shows the how.
+- **Discussion** — trade-offs, alternatives rejected, deliberate deviations from a documented
+  default, and open questions for the reviewer to settle. This is where a judgment call gets
+  recorded; leave it blank only if there genuinely was none.
+- **Overview of changes** — a `| Area | Change |` table mapping each touched path or module to
+  what changed in it, so a reviewer can navigate the diff without archaeology. Describe the diff,
+  not the domain.
+- **External requirements** — anything outside this repo needed to make the change work: new
+  tooling and its version floor, env vars, provider config, registry permissions, CI secrets,
+  dependency upgrades. Write `None.` when there are none, and say so explicitly when `go.mod`
+  is untouched.
+- **Impact** — who is affected and how: breaking changes, behavior differences for existing
+  users, docs needing updates, whether release-please will cut a release.
+
+More generally: before writing any artifact the repo might already have a convention for — a PR
+body, an issue, a changelog entry, a config file — look for an existing template or a recent
+example and follow it, rather than composing a structure from scratch.
