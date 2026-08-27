@@ -108,6 +108,7 @@ resource "aws_eks_node_group" "main" {
 | `config` | `dynamic` | no | Fully resolved config. Secrets are redacted as `"(sensitive)"`. |
 | `sensitive_config` | `dynamic` | yes | Same as `config` but with secrets in plaintext. |
 | `flat_config` | `map(string)` | no | `config` flattened to `flat_separator`-delimited keys. All values converted to strings. |
+| `sensitive_flat_config` | `map(string)` | yes | Flattened map containing **only** the keys whose values include secrets, with plaintext values. Non-secret keys are excluded. |
 | `loaded_layers` | `list(string)` | no | Paths of layer files that were successfully loaded. |
 | `secret_paths` | `list(string)` | no | Dot-delimited paths in `config` that contain secret values. |
 

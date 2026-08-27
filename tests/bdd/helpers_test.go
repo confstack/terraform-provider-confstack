@@ -67,6 +67,14 @@ func setupFixture(name string) string {
 }
 
 func resolveConfig(resolver *usecase.Resolver, layers []string, opts ...func(*domain.ResolveRequest)) (map[string]interface{}, error) {
+	result, err := resolveResult(resolver, layers, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return result.Output, nil
+}
+
+func resolveResult(resolver *usecase.Resolver, layers []string, opts ...func(*domain.ResolveRequest)) (*domain.ResolveResult, error) {
 	allOpts := []func(*domain.ResolveRequest){
 		domain.WithVariables(map[string]string{}),
 		domain.WithSecrets(map[string]string{}),
@@ -77,9 +85,5 @@ func resolveConfig(resolver *usecase.Resolver, layers []string, opts ...func(*do
 	if err != nil {
 		return nil, err
 	}
-	resp, err := resolver.Resolve(context.Background(), req)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Output, nil
+	return resolver.Resolve(context.Background(), req)
 }

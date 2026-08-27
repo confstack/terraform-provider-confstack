@@ -77,6 +77,12 @@ func (d *LayeredConfigDataSource) Schema(_ context.Context, _ datasource.SchemaR
 				ElementType: types.StringType,
 				Description: "Flattened view of config with separator-delimited keys. All values are converted to strings.",
 			},
+			"sensitive_flat_config": schema.MapAttribute{
+				Computed:    true,
+				Sensitive:   true,
+				ElementType: types.StringType,
+				Description: "Flattened map containing only the keys whose values include secrets, with plaintext values. Non-secret keys are excluded.",
+			},
 			"loaded_layers": schema.ListAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
@@ -93,16 +99,17 @@ func (d *LayeredConfigDataSource) Schema(_ context.Context, _ datasource.SchemaR
 
 // layeredConfigDataSourceModel is the Terraform state model for confstack_layered_config.
 type layeredConfigDataSourceModel struct {
-	Layers          types.List    `tfsdk:"layers"`
-	OnMissingLayer    types.String  `tfsdk:"on_missing_layer"`
-	Variables       types.Map     `tfsdk:"variables"`
-	Secrets         types.Map     `tfsdk:"secrets"`
-	FlatSeparator   types.String  `tfsdk:"flat_separator"`
-	Config          types.Dynamic `tfsdk:"config"`
-	SensitiveConfig types.Dynamic `tfsdk:"sensitive_config"`
-	FlatConfig      types.Map     `tfsdk:"flat_config"`
-	LoadedLayers    types.List    `tfsdk:"loaded_layers"`
-	SecretPaths     types.List    `tfsdk:"secret_paths"`
+	Layers               types.List    `tfsdk:"layers"`
+	OnMissingLayer       types.String  `tfsdk:"on_missing_layer"`
+	Variables            types.Map     `tfsdk:"variables"`
+	Secrets              types.Map     `tfsdk:"secrets"`
+	FlatSeparator        types.String  `tfsdk:"flat_separator"`
+	Config               types.Dynamic `tfsdk:"config"`
+	SensitiveConfig      types.Dynamic `tfsdk:"sensitive_config"`
+	FlatConfig           types.Map     `tfsdk:"flat_config"`
+	SensitiveFlatConfig  types.Map     `tfsdk:"sensitive_flat_config"`
+	LoadedLayers         types.List    `tfsdk:"loaded_layers"`
+	SecretPaths          types.List    `tfsdk:"secret_paths"`
 }
 
 // Configure builds the resolver with real adapters.
@@ -207,6 +214,18 @@ func (d *LayeredConfigDataSource) Read(ctx context.Context, req datasource.ReadR
 		return
 	}
 	state.FlatConfig = flatConfigVal
+
+	// Convert sensitive_flat_config to types.Map(string).
+	sensFlatElems := make(map[string]attr.Value, len(result.SensitiveFlatOutput))
+	for k, v := range result.SensitiveFlatOutput {
+		sensFlatElems[k] = types.StringValue(fmt.Sprintf("%v", v))
+	}
+	sensFlatConfigVal, diags := types.MapValue(types.StringType, sensFlatElems)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.SensitiveFlatConfig = sensFlatConfigVal
 
 	// Build loaded_layers list.
 	loadedElems := make([]attr.Value, len(result.LoadedLayers))
