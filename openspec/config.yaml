@@ -1,0 +1,39 @@
+schema: spec-driven
+
+context: |
+  Terraform provider (`confstack`) written in Go 1.25+, published to the Terraform Registry.
+  Exposes a single read-only data source: `confstack_layered_config`. No managed resources.
+
+  Architecture: hexagonal / clean. Dependencies always point inward; the domain never
+  imports adapters.
+    adapter/driving/terraform/  -> Terraform framework wiring (provider, data source, mapper)
+    port/input/                 -> ConfigResolver interface
+    usecase/resolver.go         -> resolution pipeline orchestrator
+    domain/                     -> pure Go business logic, zero external dependencies
+    port/output/                -> FileReader, YAMLParser, TemplateEngine, Logger
+    adapter/driven/             -> filesystem, yaml, template, logging
+
+  Resolution pipeline (order matters): Expand globs -> Load -> Template -> Parse -> Merge ->
+  Inherit -> Strip reserved keys -> Resolve secrets -> Flatten. Load/Template/Parse run per layer
+  in one loop; the rest operate on the merged tree.
+  Secrets are replaced by SHA256 sentinels during templating and redacted as "(sensitive)"
+  in the non-sensitive output. Layer entries accept glob patterns; a "literal:" prefix forces
+  an exact path.
+
+  Conventions:
+  - Conventional Commits are enforced on PRs; release-please derives semver from history.
+  - All error types live in internal/domain/errors.go, never inline.
+  - Docs under docs/ are generated via `go generate ./...` and must be checked in.
+  - Tests: internal/**/*_test.go (unit), tests/bdd/ (Ginkgo/Gomega), tests/e2e/ (TF_ACC=1).
+  - Make targets: build, test, bdd, e2e, cover, lint, fmt, install, generate.
+
+rules:
+  specs:
+    - Write every scenario as GIVEN / WHEN / THEN bullets, in that order, matching the existing specs under openspec/specs/.
+    - Requirements describe observable behavior only; keep package layout, type names, and algorithms in design.md.
+    - Name the concrete domain error type when a scenario asserts a failure (for example MergeConflictError).
+  proposal:
+    - State which architectural layer(s) the change touches and confirm dependencies still point inward.
+  tasks:
+    - Include a task for unit tests, and for BDD or e2e coverage when behavior is user-visible.
+    - Include a `make generate` + checked-in docs task whenever the data source schema changes.
