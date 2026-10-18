@@ -165,6 +165,127 @@ databases:
 	if !result.SecretPaths["databases.main.password"] {
 		t.Error("expected databases.main.password in secret paths")
 	}
+
+	// SensitiveFlatOutput should contain only the secret key with its plaintext value.
+	if len(result.SensitiveFlatOutput) != 1 {
+		t.Errorf("expected 1 entry in SensitiveFlatOutput, got %d: %v", len(result.SensitiveFlatOutput), result.SensitiveFlatOutput)
+	}
+	if result.SensitiveFlatOutput["databases.main.password"] != "super-secret" {
+		t.Errorf("SensitiveFlatOutput: expected super-secret at databases.main.password, got %v", result.SensitiveFlatOutput["databases.main.password"])
+	}
+}
+
+func TestResolver_SensitiveFlatOutput_InlineSecrets(t *testing.T) {
+	dir := t.TempDir()
+	base := writeTestFile(t, dir, "base.yaml", `
+db:
+  dsn: postgres://user:{{ secret "DB_PASS" }}@db.internal:5432/mydb
+  pool: 5
+`)
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest(
+		[]string{base},
+		domain.WithSecrets(map[string]string{"DB_PASS": "s3cr3t"}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The redacted flat output should have "(sensitive)" embedded in the DSN.
+	redactedDSN, ok := result.FlatOutput["db.dsn"].(string)
+	if !ok || !contains(redactedDSN, "(sensitive)") {
+		t.Errorf("expected redacted DSN to contain (sensitive), got %v", result.FlatOutput["db.dsn"])
+	}
+
+	// sensitive_flat_config should contain the DSN with the real password, but not pool.
+	if len(result.SensitiveFlatOutput) != 1 {
+		t.Errorf("expected 1 entry in SensitiveFlatOutput, got %d: %v", len(result.SensitiveFlatOutput), result.SensitiveFlatOutput)
+	}
+	sensitiveDSN, ok := result.SensitiveFlatOutput["db.dsn"].(string)
+	if !ok || !contains(sensitiveDSN, "s3cr3t") {
+		t.Errorf("SensitiveFlatOutput: expected DSN with plaintext password, got %v", result.SensitiveFlatOutput["db.dsn"])
+	}
+	if _, exists := result.SensitiveFlatOutput["db.pool"]; exists {
+		t.Error("SensitiveFlatOutput: should not contain non-secret key db.pool")
+	}
+}
+
+func TestResolver_SensitiveFlatOutput_NoSecrets(t *testing.T) {
+	dir := t.TempDir()
+	base := writeTestFile(t, dir, "base.yaml", `
+app: myapp
+port: 8080
+`)
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest([]string{base})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.SensitiveFlatOutput) != 0 {
+		t.Errorf("expected empty SensitiveFlatOutput when no secrets used, got %v", result.SensitiveFlatOutput)
+	}
+}
+
+func TestResolver_SensitiveFlatOutput_CustomSeparator(t *testing.T) {
+	dir := t.TempDir()
+	base := writeTestFile(t, dir, "base.yaml", `
+db:
+  password: {{ secret "DB_PASS" }}
+  host: localhost
+`)
+
+	r := newResolver()
+	req, err := domain.NewResolveRequest(
+		[]string{base},
+		domain.WithSecrets(map[string]string{"DB_PASS": "mypassword"}),
+		domain.WithFlatSeparator("/"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Resolve(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Key should use "/" separator, not ".".
+	if result.SensitiveFlatOutput["db/password"] != "mypassword" {
+		t.Errorf("expected db/password=mypassword in SensitiveFlatOutput, got %v", result.SensitiveFlatOutput)
+	}
+	if _, exists := result.SensitiveFlatOutput["db/host"]; exists {
+		t.Error("SensitiveFlatOutput: should not contain non-secret key db/host")
+	}
+	// Dot-separated key must NOT appear.
+	if _, exists := result.SensitiveFlatOutput["db.password"]; exists {
+		t.Error("SensitiveFlatOutput: should not contain dot-separated key when custom separator is used")
+	}
+}
+
+// contains is a helper to avoid importing strings in tests.
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+			return false
+		}())
 }
 
 func TestResolver_NullTombstone(t *testing.T) {

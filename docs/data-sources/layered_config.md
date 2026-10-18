@@ -429,6 +429,21 @@ resource "aws_db_instance" "main" {
 }
 ```
 
+## Sensitive Flat Output
+
+`sensitive_flat_config` is a `map(string)` marked sensitive that contains **only** the flat keys whose values include at least one secret, with plaintext values. Non-secret keys are excluded entirely.
+
+This fills the gap between `flat_config` (redacted, not sensitive) and `sensitive_config` (full tree, sensitive): when you need the real value of a single secret-containing path without exposing the entire config tree as sensitive, use `sensitive_flat_config`.
+
+```hcl
+# DSN with an embedded secret — use sensitive_flat_config to get the real value.
+resource "some_resource" "db" {
+  connection_string = data.confstack_layered_config.app.sensitive_flat_config["db.dsn"]
+}
+```
+
+The map size (`sensitive_flat_config.%`) is visible in plan output; individual values are redacted by Terraform because the attribute is `sensitive`.
+
 ## Missing Layer Handling
 
 | `on_missing_layer` | Behavior when a layer file is absent |
@@ -458,3 +473,4 @@ resource "aws_db_instance" "main" {
 - `loaded_layers` (List of String) Ordered list of layer paths that were successfully loaded.
 - `secret_paths` (List of String) List of flat paths (dot-delimited) that contain secret values.
 - `sensitive_config` (Dynamic, Sensitive) The fully resolved configuration map with secrets in plaintext.
+- `sensitive_flat_config` (Map of String, Sensitive) Flattened map containing only the keys whose values include secrets, with plaintext values. Non-secret keys are excluded.

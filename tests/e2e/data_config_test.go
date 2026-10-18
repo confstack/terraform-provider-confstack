@@ -95,3 +95,23 @@ func TestAccLayeredConfigDataSource_errors(t *testing.T) {
 		},
 	})
 }
+
+func TestAccLayeredConfigDataSource_sensitiveFlatConfig(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: loadFixtureConfig(t, "sensitive_flat_config"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Only the secret key should appear in sensitive_flat_config.
+					// Terraform hides the values since the attribute is sensitive, but we
+					// can assert the map size and presence of the expected key.
+					resource.TestCheckResourceAttr("data.confstack_layered_config.test", "sensitive_flat_config.%", "1"),
+					// Non-secret keys must be absent.
+					resource.TestCheckNoResourceAttr("data.confstack_layered_config.test", "sensitive_flat_config.db.host"),
+					resource.TestCheckNoResourceAttr("data.confstack_layered_config.test", "sensitive_flat_config.app.name"),
+				),
+			},
+		},
+	})
+}
